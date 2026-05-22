@@ -237,7 +237,7 @@ class TrashRepository(
             trashStateDao.insertTrashState(updatedState)
 
             // Overwrite members if they were customized remotely
-            val remoteMembers = payload.members.map { Member(it.id, it.name, it.email) }
+            val remoteMembers = payload.members.map { Member(it.id, it.name, it.email, it.password) }
             if (remoteMembers.isNotEmpty()) {
                 memberDao.insertMembers(remoteMembers)
             }

@@ -10,7 +10,7 @@ import com.example.data.model.TrashState
 
 @Database(
     entities = [Member::class, TrashState::class, HistoryLog::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

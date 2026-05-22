@@ -29,7 +29,8 @@ class FirebaseClient {
     data class FirebaseMember(
         val id: Int,
         val name: String,
-        val email: String
+        val email: String,
+        val password: String = "user123"
     )
 
     suspend fun syncToFirebase(
@@ -52,7 +53,7 @@ class FirebaseClient {
             isTrashFull = state.isTrashFull,
             reportedByName = state.reportedByName,
             reportedAt = state.reportedAt,
-            members = members.map { FirebaseMember(it.id, it.name, it.email) }
+            members = members.map { FirebaseMember(it.id, it.name, it.email, it.password) }
         )
 
         return@withContext try {

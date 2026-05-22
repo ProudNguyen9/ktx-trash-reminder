@@ -896,6 +896,25 @@ fun RoommatesSetupTab(
                             unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                         )
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = member.password,
+                        onValueChange = { newVal ->
+                            editedMembers[index] = member.copy(password = newVal)
+                            hasChanges = true
+                        },
+                        label = { Text("Mật khẩu riêng (đăng nhập user)", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("member_password_input_${member.id}"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        )
+                    )
                 }
             }
         }
@@ -1355,6 +1374,7 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var isAdminLogin by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -1416,7 +1436,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Đăng nhập KTX Phòng 302",
+                    text = "Hệ thống Quản lý Rác KTX Phòng 302",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
@@ -1432,7 +1452,7 @@ fun LoginScreen(
                         email = it
                         errorMessage = null 
                     },
-                    label = { Text("Email thành viên") },
+                    label = { Text(if (isAdminLogin) "Email Admin" else "Email thành viên") },
                     placeholder = { Text("example@gmail.com") },
                     singleLine = true,
                     leadingIcon = {
@@ -1485,6 +1505,44 @@ fun LoginScreen(
                     shape = RoundedCornerShape(12.dp)
                 )
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Admin privileges Checkbox Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { 
+                            isAdminLogin = !isAdminLogin 
+                            errorMessage = null 
+                        }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = isAdminLogin,
+                        onCheckedChange = { 
+                            isAdminLogin = it 
+                            errorMessage = null 
+                        },
+                        modifier = Modifier.testTag("login_admin_checkbox")
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Column {
+                        Text(
+                            text = "Đăng nhập với quyền Admin",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Dành cho quản trị viên/trưởng phòng thiết lập",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 if (errorMessage != null) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -1497,7 +1555,7 @@ fun LoginScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Login Button
                 Button(
@@ -1505,17 +1563,32 @@ fun LoginScreen(
                         val inputEmailNorm = email.trim().lowercase()
                         val inputPassNorm = password.trim()
 
-                        if (inputEmailNorm == "nguyenhaohuu9@gmail.com" && inputPassNorm == "admin999") {
-                            onLoginSuccess("nguyenhaohuu9@gmail.com", "admin")
-                        } else if (inputPassNorm == "user123") {
-                            val matchedMember = members.find { it.email.trim().lowercase() == inputEmailNorm }
-                            if (matchedMember != null) {
-                                onLoginSuccess(matchedMember.email, "user")
+                        if (inputEmailNorm.isEmpty()) {
+                            errorMessage = "Vui lòng nhập Email!"
+                            return@Button
+                        }
+                        if (inputPassNorm.isEmpty()) {
+                            errorMessage = "Vui lòng nhập mật khẩu!"
+                            return@Button
+                        }
+
+                        if (isAdminLogin) {
+                            if (inputPassNorm == "admin999") {
+                                onLoginSuccess(inputEmailNorm, "admin")
                             } else {
-                                errorMessage = "Email không khớp với bất kỳ thành viên nào trong KTX!"
+                                errorMessage = "Mật khẩu Admin sai! (mặc định: admin999)"
                             }
                         } else {
-                            errorMessage = "Mật khẩu không hợp lệ hoặc thông tin đăng nhập sai!"
+                            val matchedMember = members.find { it.email.trim().lowercase() == inputEmailNorm }
+                            if (matchedMember != null) {
+                                if (inputPassNorm == matchedMember.password) {
+                                    onLoginSuccess(matchedMember.email, "user")
+                                } else {
+                                    errorMessage = "Mật khẩu thành viên không chính xác!"
+                                }
+                            } else {
+                                errorMessage = "Email không thuộc danh sách Đội hình KTX của phòng!"
+                            }
                         }
                     },
                     modifier = Modifier
@@ -1531,9 +1604,9 @@ fun LoginScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // Minimal Guides
+                // Guide Info Box
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     shape = RoundedCornerShape(12.dp),
@@ -1544,18 +1617,18 @@ fun LoginScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "💡 Thông tin tài khoản mặc định:",
+                            text = "💡 Hướng dẫn đăng nhập phòng:",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "• Admin: nguyenhaohuu9@gmail.com / Pass: admin999",
+                            text = "• Admin: Chọn 'Quyền Admin' + bất kỳ Email + Pass 'admin999'. Nhấn Đăng nhập để thay đổi thành viên & mật khẩu.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "• Thành viên: Email trong Đội hình KTX / Pass: user123",
+                            text = "• Thành viên: Nhập Email đúng + Mật khẩu riêng tư do Admin thiết lập (mặc định ban đầu: user123).",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
