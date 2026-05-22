@@ -108,7 +108,7 @@ class EmailSender {
             })
 
             val message = MimeMessage(session).apply {
-                setFrom(InternetAddress(senderEmail, "Dorm Trash Guard"))
+                setFrom(InternetAddress(senderEmail, "Dorm_trash_guard"))
                 addRecipient(Message.RecipientType.TO, InternetAddress(toEmail))
                 setSubject(subject)
                 setContent(htmlContent, "text/html; charset=utf-8")
