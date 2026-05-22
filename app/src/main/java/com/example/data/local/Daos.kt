@@ -19,6 +19,12 @@ interface MemberDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMembers(members: List<Member>)
+
+    @Delete
+    suspend fun deleteMember(member: Member)
+
+    @Query("DELETE FROM members")
+    suspend fun deleteAllMembers()
 }
 
 @Dao

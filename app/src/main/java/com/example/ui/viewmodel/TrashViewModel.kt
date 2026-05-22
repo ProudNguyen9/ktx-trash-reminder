@@ -77,7 +77,16 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             repository.updateMembers(membersList)
-            _statusMessage.emit("Đã cập nhật danh sách 7 thành viên!")
+            _statusMessage.emit("Đã cập nhật danh sách thành viên!")
+            _isLoading.value = false
+        }
+    }
+
+    fun deleteMember(member: Member) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.deleteMember(member)
+            _statusMessage.emit("Đã xóa thành viên: ${member.name}")
             _isLoading.value = false
         }
     }
@@ -118,6 +127,15 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = true
             repository.updateResendSettings(resendKey, webConfirmUrl)
             _statusMessage.emit("Đã lưu cấu hình Email & Link Xác nhận nhanh!")
+            _isLoading.value = false
+        }
+    }
+
+    fun saveAdminCredentials(email: String, secret: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.updateAdminCredentials(email, secret)
+            _statusMessage.emit("Đã cập nhật thông tin bảo mật tài khoản Admin mới thành công!")
             _isLoading.value = false
         }
     }

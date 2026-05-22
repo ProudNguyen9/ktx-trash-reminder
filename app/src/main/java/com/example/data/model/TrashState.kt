@@ -15,5 +15,7 @@ data class TrashState(
     val firebaseProjectId: String = "",
     val resendApiKey: String = "",
     val webConfirmUrl: String = "",
-    val lastSyncedAt: Long = 0L
+    val lastSyncedAt: Long = 0L,
+    val adminEmail: String = "nguyenhaohuu9@gmail.com",
+    val adminPassword: String = "admin999"
 )

@@ -66,6 +66,11 @@ class TrashRepository(
         syncToFirebase()
     }
 
+    suspend fun deleteMember(member: Member) {
+        memberDao.deleteMember(member)
+        syncToFirebase()
+    }
+
     suspend fun updateMembers(members: List<Member>) {
         memberDao.insertMembers(members)
         // Push state up to Firebase to keep settings synced
@@ -188,6 +193,17 @@ class TrashRepository(
         )
         trashStateDao.insertTrashState(updatedState)
         historyLogDao.insertLog(HistoryLog(message = "Đã cấu hình lại dịch vụ gửi mail tự động Resend và link Xác nhận nhanh.", type = "CONFIG"))
+    }
+
+    // Change settings for Admin credentials
+    suspend fun updateAdminCredentials(email: String, secret: String) {
+        val currentState = trashStateDao.getTrashState() ?: TrashState(id = 1)
+        val updatedState = currentState.copy(
+            adminEmail = email,
+            adminPassword = secret
+        )
+        trashStateDao.insertTrashState(updatedState)
+        historyLogDao.insertLog(HistoryLog(message = "Đã cập nhật thông tin bảo mật tài khoản quản trị Admin.", type = "CONFIG"))
     }
 
     // Manually push current state to Firebase
