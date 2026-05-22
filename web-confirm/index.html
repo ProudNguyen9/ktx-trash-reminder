@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác Nhận Đổ Rác • Dorm Trash Guard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #FEF7FF;
+        }
+        .anim-bounce-custom {
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 text-[#1D1B20]">
+
+    <div class="w-full max-w-md bg-white rounded-[32px] shadow-sm border border-[#EADDFF] p-8 text-center relative overflow-hidden">
+        
+        <!-- Top App Emblem Design -->
+        <div class="flex justify-center mb-6">
+            <div class="w-16 h-16 rounded-full bg-[#EADDFF] flex items-center justify-center">
+                <svg class="w-8 h-8 text-[#6750A4]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </div>
+        </div>
+
+        <h1 class="text-2xl font-extrabold tracking-tight mb-2">Dorm Trash Guard</h1>
+        <p class="text-xs text-[#49454F] font-semibold uppercase tracking-widest mb-8">Cổng Xác Nhận Trực Tuyến</p>
+
+        <!-- STATE 1: LOADING -->
+        <div id="state-loading" class="flex flex-col items-center py-8">
+            <div class="w-12 h-12 border-4 border-[#6750A4] border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-sm font-medium text-[#49454F]">Đang kết nối tới dữ liệu KTX...</p>
+        </div>
+
+        <!-- STATE 2: CONFIRMATION FORM -->
+        <div id="state-confirm" class="hidden flex flex-col items-center">
+            <div class="w-24 h-24 rounded-full bg-[#F9DEDC] flex items-center justify-center mb-6 anim-bounce-custom">
+                <svg class="w-12 h-12 text-[#B3261E]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+
+            <p class="text-base text-[#49454F] mb-2">Chào bạn,</p>
+            <h2 id="current-roommate-name" class="text-2xl font-bold mb-4 text-[#1D1B20]">Đang tải...</h2>
+            
+            <div class="bg-[#F3EDF7] border border-[#EADDFF] rounded-2xl p-4 w-full mb-6 text-sm">
+                <p class="font-medium text-[#6750A4]">⚠️ Thùng rác phòng bạn đang được báo đầy!</p>
+                <p class="text-xs text-[#49454F] mt-1">Vui lòng xách rác đi đổ, sau đó nhấn nút phía dưới để ghi nhận hoàn thành.</p>
+            </div>
+
+            <button id="btn-confirm-dump" class="w-full py-4 bg-[#6750A4] hover:bg-[#533f8a] text-white font-bold rounded-2xl transition shadow-lg flex items-center justify-center gap-2 mb-4">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                XÁC NHẬN ĐÃ ĐỔ RÁC ✅
+            </button>
+        </div>
+
+        <!-- STATE 3: SUCCESS -->
+        <div id="state-success" class="hidden flex flex-col items-center py-6">
+            <div class="w-20 h-20 rounded-full bg-[#E5F7ED] flex items-center justify-center mb-6">
+                <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-green-700 mb-2">CẢM ƠN BẠN! 🎉</h2>
+            <p id="success-message" class="text-sm text-[#49454F] mb-6 px-4">Lượt đổ rác đã được cập nhật thành công trực tuyến.</p>
+            
+            <div class="border-t border-[#CAC4D0] pt-4 w-full text-xs text-[#49454F]">
+                Lượt tiếp theo: <strong id="next-roommate-name" class="text-[#6750A4] text-sm">Đang tải...</strong>
+            </div>
+        </div>
+
+        <!-- STATE 4: ERROR / NOT REQUIRED -->
+        <div id="state-error" class="hidden flex flex-col items-center py-6">
+            <div class="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-6">
+                <svg class="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold text-amber-700 mb-2">Không cần thao tác!</h2>
+            <p id="error-message-detail" class="text-sm text-[#49454F] mb-6 px-4">Hiện tại không có thông báo rác đầy hoặc lượt đổ rác đã được cập nhật bởi thành viên khác trước đó rồi.</p>
+        </div>
+
+        <!-- Footer credit -->
+        <div class="mt-8 text-[11px] text-[#49454F] opacity-70">
+            Dorm Trash Guard • KTX 7 Thành Viên • Bảo Mật Tuyệt Đối
+        </div>
+    </div>
+
+    <script>
+        // Parse URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const dbUrlRaw = urlParams.get('dbUrl');
+        const apiKey = urlParams.get('apiKey') || '';
+        const requestedIndex = urlParams.get('idx'); // Expected index if passed
+
+        // DOM elements
+        const viewLoading = document.getElementById('state-loading');
+        const viewConfirm = document.getElementById('state-confirm');
+        const viewSuccess = document.getElementById('state-success');
+        const viewError = document.getElementById('state-error');
+
+        const labelCurrentName = document.getElementById('current-roommate-name');
+        const labelSuccessMsg = document.getElementById('success-message');
+        const labelNextName = document.getElementById('next-roommate-name');
+        const labelErrorDetail = document.getElementById('error-message-detail');
+
+        const btnConfirm = document.getElementById('btn-confirm-dump');
+
+        let dbUrl = dbUrlRaw ? dbUrlRaw.trim().replace(/\/$/, '') : '';
+        let appState = null;
+
+        function showState(element) {
+            viewLoading.classList.add('hidden');
+            viewConfirm.classList.add('hidden');
+            viewSuccess.classList.add('hidden');
+            viewError.classList.add('hidden');
+            element.classList.remove('hidden');
+        }
+
+        async function init() {
+            if (!dbUrl) {
+                labelErrorDetail.textContent = 'Lỗi cấu hình: Thiếu thông tin liên kết cơ sở dữ liệu Firebase (dbUrl). Cần có admin cài đặt lại liên kết.';
+                showState(viewError);
+                return;
+            }
+
+            try {
+                // Fetch current state from Firebase Realtime Database
+                const fetchUrl = apiKey ? `${dbUrl}/state.json?auth=${apiKey}` : `${dbUrl}/state.json`;
+                const response = await fetch(fetchUrl);
+                
+                if (!response.ok) {
+                    throw new Error('Không thể kết nối đến Firebase Server.');
+                }
+
+                appState = await response.json();
+                
+                if (!appState) {
+                    throw new Error('Dữ liệu trên Firebase trống.');
+                }
+
+                // Check if trash is full
+                if (!appState.isTrashFull) {
+                    labelErrorDetail.innerHTML = `Thùng rác hiện tại <strong>đã được dọn sạch sẽ</strong> rồi! <br/>Lượt của thành viên: <strong>${getCurrentMemberName(appState.currentTurnIndex)}</strong>`;
+                    showState(viewError);
+                    return;
+                }
+
+                // Setup current turn details
+                const currentName = getCurrentMemberName(appState.currentTurnIndex);
+                labelCurrentName.innerHTML = `${currentName} <span class="text-xs bg-[#EADDFF] text-[#21005D] px-2 py-0.5 rounded-full ml-1 font-semibold">Tôi đến lượt</span>`;
+                
+                showState(viewConfirm);
+
+            } catch (e) {
+                console.error(e);
+                labelErrorDetail.textContent = 'Không kết nối được tới Firebase. Vui lòng kiểm tra kết nối mạng hoặc bảo mật Firebase.';
+                showState(viewError);
+            }
+        }
+
+        function getCurrentMemberName(index) {
+            if (appState && appState.members && appState.members[index]) {
+                return appState.members[index].name;
+            }
+            return `Thành viên ${index + 1}`;
+        }
+
+        async function doConfirmDump() {
+            showState(viewLoading);
+            
+            try {
+                const prevIndex = appState.currentTurnIndex;
+                const prevName = getCurrentMemberName(prevIndex);
+                const nextIndex = (prevIndex + 1) % 7;
+                const nextName = getCurrentMemberName(nextIndex);
+
+                // Update changes locally for the PATCH body
+                const updatePayload = {
+                    currentTurnIndex: nextIndex,
+                    isTrashFull: false,
+                    reportedByName: "",
+                    reportedAt: 0
+                };
+
+                // Perform direct REST PATCH to Firebase
+                const patchUrl = apiKey ? `${dbUrl}/state.json?auth=${apiKey}` : `${dbUrl}/state.json`;
+                const response = await fetch(patchUrl, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatePayload)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Không thể cập nhật trạng thái lên Firebase.');
+                }
+
+                // Setup screen
+                labelSuccessMsg.innerHTML = `Đã ghi nhận <strong>${prevName}</strong> đã mang túi rác đi đổ thành công! <br/>Cảm ơn bạn đã giữ sạch phòng KTX.`;
+                labelNextName.textContent = nextName;
+                showState(viewSuccess);
+
+            } catch (e) {
+                console.error(e);
+                labelErrorDetail.textContent = 'Gặp lỗi trong lúc cập nhật trạng thái lên server. Vui lòng thử lại sau.';
+                showState(viewError);
+            }
+        }
+
+        btnConfirm.addEventListener('click', doConfirmDump);
+
+        // Run initiation
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "Dorm Trash Guard",
+  "description": "Lịch đổ rác 7 người trong phòng kí túc xá, gửi mail nhắc nhở khi rác đầy và đồng bộ Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
