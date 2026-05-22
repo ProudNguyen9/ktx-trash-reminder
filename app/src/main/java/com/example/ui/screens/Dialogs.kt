@@ -29,7 +29,7 @@ fun ReportFullDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var selectedName by remember { mutableStateOf(defaultName) }
+    var selectedName by remember(defaultName) { mutableStateOf(defaultName) }
     var localCustomName by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -135,7 +135,7 @@ fun ConfirmDumpDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var selectedName by remember { mutableStateOf(defaultName) }
+    var selectedName by remember(defaultName) { mutableStateOf(defaultName) }
     var localCustomName by remember { mutableStateOf("") }
 
     AlertDialog(

@@ -10,13 +10,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.data.model.TrashState
 
-// ---------------------- CONFIG TAB ----------------------
 @Composable
 fun ConfigTab(
     trashState: TrashState?,
@@ -24,22 +25,11 @@ fun ConfigTab(
     onSaveResend: (String, String) -> Unit,
     onSaveAdminCredentials: (String, String) -> Unit
 ) {
-    var dbUrl by remember { mutableStateOf(trashState?.firebaseDbUrl ?: "") }
-    var dbSecret by remember { mutableStateOf(trashState?.firebaseApiKey ?: "") }
-    var dbProjId by remember { mutableStateOf(trashState?.firebaseProjectId ?: "") }
-    var resendKey by remember { mutableStateOf(trashState?.resendApiKey ?: "") }
-    var webConfirmUrl by remember { mutableStateOf(trashState?.webConfirmUrl ?: "") }
     var adminEmail by remember { mutableStateOf(trashState?.adminEmail ?: "nguyenhaohuu9@gmail.com") }
     var adminPassword by remember { mutableStateOf(trashState?.adminPassword ?: "admin999") }
 
-    // Synchronize local UI state if database loads asynchronously
     LaunchedEffect(trashState) {
         if (trashState != null) {
-            dbUrl = trashState.firebaseDbUrl
-            dbSecret = trashState.firebaseApiKey
-            dbProjId = trashState.firebaseProjectId
-            resendKey = trashState.resendApiKey
-            webConfirmUrl = trashState.webConfirmUrl
             adminEmail = trashState.adminEmail
             adminPassword = trashState.adminPassword
         }
@@ -52,7 +42,41 @@ fun ConfigTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Firebase sync section
+        // Announcement Box for Environments
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = "Info",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Quản lý bằng Biến môi trường (.env)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Tất cả các dịch vụ nền ảo như Gmail SMTP gửi thư tự động và đồng bộ trực tuyến Firebase Realtime Database hiện đã được bảo mật & tối ưu cấu hình tĩnh thông qua biến môi trường (.env / BuildConfig). Không cần chỉnh sửa trực tiếp trên giao diện để tránh rò rỉ mã bảo mật trên thiết bị.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+        }
+
+        // Card: Gmail SMTP Config Display
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -60,75 +84,64 @@ fun ConfigTab(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "ĐỒNG BỘ CLOUD FIREBASE",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Cấu hình Firebase để đồng bộ lượt đổ rác giữa điện thoại của các thành viên trong phòng cùng thời gian thực.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    OutlinedTextField(
-                        value = dbUrl,
-                        onValueChange = { dbUrl = it },
-                        label = { Text("Firebase Realtime Database URL") },
-                        placeholder = { Text("https://your-app.firebaseio.com") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("firebase_url_input")
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = dbSecret,
-                        onValueChange = { dbSecret = it },
-                        label = { Text("Database Secret / Password") },
-                        placeholder = { Text("Mật khẩu quyền ghi (Nếu có)") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("firebase_secret_input")
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = dbProjId,
-                        onValueChange = { dbProjId = it },
-                        label = { Text("Project ID") },
-                        placeholder = { Text("ID của dự án Firebase") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("firebase_project_input")
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Button(
-                        onClick = { onSaveFirebase(dbUrl, dbSecret, dbProjId) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("save_firebase_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Cấu hình Firebase", fontWeight = FontWeight.Bold)
+                        Text(
+                            "GỬI EMAIL TỰ ĐỘNG GMAIL SMTP",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 1.sp
+                        )
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Active (Env)", 
+                                fontSize = 10.sp, 
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text("Tài khoản Gmail gửi thư:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = BuildConfig.SENDER_GMAIL_ADDRESS.ifBlank { "Chưa cấu hình tài khoản gửi thư (Trống)" },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text("Trực tuyến SMTP Server:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = "smtp.gmail.com (Cổng 465 - SSL Bảo mật)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text("Link hành động xác nhận nhanh (Web Portal):", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = BuildConfig.WEB_CONFIRM_URL.ifBlank { "Chưa cấu hình link xác nhận nhanh (Trống)" },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
 
-        // Resend background email setup
+        // Card: Firebase Sync Config Display
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -136,62 +149,55 @@ fun ConfigTab(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "TỰ ĐỘNG GỬI MAIL THÔNG BÁO (RESEND API)",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Cấu hình Mail API để hệ thống tự động gửi email thông báo chạy ngầm cho thành viên đến lượt khi nhấn nút 'Báo rác đầy' mà không cần vào app mail thủ công.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    OutlinedTextField(
-                        value = resendKey,
-                        onValueChange = { resendKey = it },
-                        label = { Text("Resend API Key") },
-                        placeholder = { Text("re_123456789...") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("resend_key_input")
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = webConfirmUrl,
-                        onValueChange = { webConfirmUrl = it },
-                        label = { Text("Link Xác Nhận Qua Web (Web Confirm URL)") },
-                        placeholder = { Text("https://your-domain.com/index.html") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("web_confirm_url_input")
-                    )
-
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "ĐỒNG BỘ ĐÁM MÂY (FIREBASE CLOUD)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 1.sp
+                        )
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Active (Env)", 
+                                fontSize = 10.sp, 
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Button(
-                        onClick = { onSaveResend(resendKey, webConfirmUrl) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("save_resend_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Lưu Email & Link Web Action", fontWeight = FontWeight.Bold)
-                    }
+                    Text("Link Firebase Realtime Database:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = BuildConfig.FIREBASE_DB_URL.ifBlank { "Chưa cấu hình cơ sở dữ liệu Firebase (Trống)" },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text("ID Dự án (Project ID):", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = BuildConfig.FIREBASE_PROJECT_ID.ifBlank { "Chưa cấu hình mã dự án (Trống)" },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
 
-        // Admin credentials config
+        // Card: Admin setup config
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -250,42 +256,6 @@ fun ConfigTab(
                     ) {
                         Text("Cập nhật Tài khoản Admin", fontWeight = FontWeight.Bold)
                     }
-                }
-            }
-        }
-
-        // Security Warning Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = "Warning",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "Khuyên dùng và bảo mật",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Nếu các thông tin cấu hình đồng bộ trực tuyến được nhập tại đây, chúng sẽ chỉ được lưu an toàn cục bộ trong bộ nhớ đệm điện thoại bằng cơ sở dữ liệu SQLite cục bộ (Room) để đảm bảo bảo mật tối đa cho tài khoản của bạn.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }

@@ -21,12 +21,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    TrashAppUi(
-                        viewModel = viewModel,
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                TrashAppUi(
+                    viewModel = viewModel,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }

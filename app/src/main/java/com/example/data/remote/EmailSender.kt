@@ -1,30 +1,23 @@
 package com.example.data.remote
 
 import android.util.Log
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Properties
+import javax.mail.Authenticator
+import javax.mail.Message
+import javax.mail.PasswordAuthentication
+import javax.mail.Session
+import javax.mail.Transport
+import javax.mail.internet.InternetAddress
+import javax.mail.internet.MimeMessage
 
 class EmailSender {
-    private val client = OkHttpClient()
-    private val moshi = Moshi.Builder()
-        .add(KotlinJsonAdapterFactory())
-        .build()
 
-    data class ResendPayload(
-        val from: String,
-        val to: List<String>,
-        val subject: String,
-        val html: String
-    )
-
-    suspend fun sendEmailViaResend(
-        apiKey: String,
+    suspend fun sendEmailViaGmail(
+        senderEmail: String,
+        senderPassword: String,
         toEmail: String,
         recipientName: String,
         sequenceId: Int,
@@ -32,14 +25,24 @@ class EmailSender {
         firebaseDbUrl: String = "",
         firebaseApiKey: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank() || toEmail.isBlank()) return@withContext false
+        if (senderEmail.isBlank() || senderPassword.isBlank() || toEmail.isBlank()) {
+            Log.e("EmailSender", "Cannot send email: Missing sender or recipient details.")
+            return@withContext false
+        }
 
         var confirmButtonHtml = ""
         if (webConfirmUrl.isNotBlank() && firebaseDbUrl.isNotBlank()) {
             try {
                 val dbUrlEncoded = java.net.URLEncoder.encode(firebaseDbUrl, "UTF-8")
                 val apiKeyEncoded = java.net.URLEncoder.encode(firebaseApiKey, "UTF-8")
-                val confirmUrl = "$webConfirmUrl?dbUrl=$dbUrlEncoded&apiKey=$apiKeyEncoded"
+                
+                // Normalize webConfirmUrl to include web-confirm/index.html if not specified
+                val finalWebConfirmUrl = when {
+                    webConfirmUrl.contains("/web-confirm/") -> webConfirmUrl
+                    webConfirmUrl.endsWith("/") -> "${webConfirmUrl}web-confirm/index.html"
+                    else -> "$webConfirmUrl/web-confirm/index.html"
+                }
+                val confirmUrl = "$finalWebConfirmUrl?dbUrl=$dbUrlEncoded&apiKey=$apiKeyEncoded"
                 
                 confirmButtonHtml = """
                     <div style="text-align: center; margin: 30px 0;">
@@ -62,7 +65,7 @@ class EmailSender {
                 <div style="text-align: center; margin-bottom: 20px;">
                     <span style="font-size: 40px;">🗑️</span>
                     <h2 style="color: #B3261E; margin-top: 10px; font-weight: 800; letter-spacing: -0.5px;">🚨 CẢNH BÁO RÁC ĐẦY!</h2>
-                    <p style="color: #49454F; font-size: 14px; margin-top: 0;">Dorm Trash Guard App • KTX 7 Thành Viên</p>
+                    <p style="color: #49454F; font-size: 14px; margin-top: 0;">Dorm Trash Guard App • Đội đổ rác KTX</p>
                 </div>
                 
                 <p>Chào <strong>$recipientName</strong>,</p>
@@ -70,7 +73,7 @@ class EmailSender {
                 
                 <div style="background-color: #F9DEDC; border-left: 4px solid #B3261E; padding: 16px; margin: 20px 0; border-radius: 12px;">
                     <p style="margin: 0; font-size: 15px; color: #410E0B; font-weight: bold;">
-                        👉 Hiện tại đang đến lượt của bạn (Thứ tự quy định: #${sequenceId} trong vòng lặp 1-7).
+                        👉 Hiện tại đang đến lượt của bạn (Thứ tự quy định: #${sequenceId} trong vòng lặp thành viên).
                     </p>
                 </div>
                 
@@ -87,37 +90,35 @@ class EmailSender {
             </div>
         """.trimIndent()
 
-        val payload = ResendPayload(
-            from = "Dorm Trash Guard <onboarding@resend.dev>",
-            to = listOf(toEmail),
-            subject = subject,
-            html = htmlContent
-        )
-
-        return@withContext try {
-            val adapter = moshi.adapter(ResendPayload::class.java)
-            val json = adapter.toJson(payload)
-            val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
-            
-            val request = Request.Builder()
-                .url("https://api.resend.com/emails")
-                .header("Authorization", "Bearer $apiKey")
-                .header("Content-Type", "application/json")
-                .post(body)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    Log.d("EmailSender", "Email sent successfully via Resend API")
-                    true
-                } else {
-                    val errorBody = response.body?.string() ?: ""
-                    Log.e("EmailSender", "Resend API error: ${response.code} $errorBody")
-                    false
-                }
+        try {
+            val props = Properties().apply {
+                put("mail.smtp.host", "smtp.gmail.com")
+                put("mail.smtp.socketFactory.port", "465")
+                put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory")
+                put("mail.smtp.auth", "true")
+                put("mail.smtp.port", "465")
+                put("mail.smtp.connectiontimeout", "12000")
+                put("mail.smtp.timeout", "12000")
             }
+
+            val session = Session.getInstance(props, object : Authenticator() {
+                override fun getPasswordAuthentication(): PasswordAuthentication {
+                    return PasswordAuthentication(senderEmail, senderPassword)
+                }
+            })
+
+            val message = MimeMessage(session).apply {
+                setFrom(InternetAddress(senderEmail, "Dorm Trash Guard"))
+                addRecipient(Message.RecipientType.TO, InternetAddress(toEmail))
+                setSubject(subject)
+                setContent(htmlContent, "text/html; charset=utf-8")
+            }
+
+            Transport.send(message)
+            Log.d("EmailSender", "Email sent successfully via Gmail SMTP to $toEmail")
+            true
         } catch (e: Exception) {
-            Log.e("EmailSender", "Error sending email via Resend API", e)
+            Log.e("EmailSender", "Failed to send email via Gmail SMTP: ${e.message}", e)
             false
         }
     }

@@ -35,17 +35,23 @@ fun TrashAppUi(
     val trashState by viewModel.trashState.collectAsStateWithLifecycle()
     val recentLogs by viewModel.recentLogs.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val activeRoomName by viewModel.activeRoomName.collectAsStateWithLifecycle()
 
     var loggedInEmail by rememberSaveable { mutableStateOf("") }
     var loggedInRole by rememberSaveable { mutableStateOf("") } // "" (not logged in), "admin", "user"
 
     if (loggedInRole.isEmpty()) {
         LoginScreen(
-            members = members,
-            trashState = trashState,
-            onLoginSuccess = { email, role ->
+            onRegisterRoom = { roomName, adminName, adminEmail, adminPassword, onResult ->
+                viewModel.registerRoom(roomName, adminName, adminEmail, adminPassword, onResult)
+            },
+            onLoginSuccess = { email, role, roomName ->
+                viewModel.selectRoom(roomName)
                 loggedInEmail = email
                 loggedInRole = role
+            },
+            checkCredentials = { email, password ->
+                viewModel.checkLoginCredentials(email, password)
             }
         )
         return
@@ -188,6 +194,7 @@ fun TrashAppUi(
                     1 -> {
                         if (loggedInRole == "admin") {
                             RoommatesSetupTab(
+                                roomName = activeRoomName ?: "",
                                 members = members,
                                 onSaveMembers = { updatedList ->
                                     viewModel.updateMembers(updatedList)

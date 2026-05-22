@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,6 +27,7 @@ import com.example.data.model.Member
 // ---------------------- ROOMMATES SETUP TAB ----------------------
 @Composable
 fun RoommatesSetupTab(
+    roomName: String,
     members: List<Member>,
     onSaveMembers: (List<Member>) -> Unit
 ) {
@@ -68,8 +70,10 @@ fun RoommatesSetupTab(
             }
         }
 
-        items(editedMembers.size) { index ->
-            val member = editedMembers[index]
+        itemsIndexed(
+            items = editedMembers,
+            key = { _, member -> member.id }
+        ) { index, member ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -191,6 +195,7 @@ fun RoommatesSetupTab(
                     val nextId = (editedMembers.map { it.id }.maxOrNull() ?: 0) + 1
                     editedMembers.add(
                         Member(
+                            roomName = roomName,
                             id = nextId,
                             name = "Thành viên $nextId",
                             email = "user$nextId@example.com",

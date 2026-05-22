@@ -1,11 +1,11 @@
 package com.example.data.model
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
-@Entity(tableName = "members")
+@Entity(tableName = "members", primaryKeys = ["roomName", "id"])
 data class Member(
-    @PrimaryKey val id: Int, // 1 to 7
+    val roomName: String,
+    val id: Int, // 1 to 7 within the room
     val name: String,
     val email: String,
     val password: String = "user123"

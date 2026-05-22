@@ -4,37 +4,61 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
+import com.example.data.model.DormRoom
 import com.example.data.model.HistoryLog
+import com.example.data.model.LoginMatch
 import com.example.data.model.Member
 import com.example.data.model.TrashState
 import com.example.data.repository.TrashRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class TrashViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = TrashRepository(
+        database.dormRoomDao(),
         database.memberDao(),
         database.trashStateDao(),
         database.historyLogDao()
     )
 
     // Exposed Flows
-    val members: StateFlow<List<Member>> = repository.membersFlow
+    val allRooms: StateFlow<List<DormRoom>> = repository.allRoomsFlow
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val trashState: StateFlow<TrashState?> = repository.trashStateFlow
+    private val _activeRoomName = MutableStateFlow<String?>(null)
+    val activeRoomName: StateFlow<String?> = _activeRoomName.asStateFlow()
+
+    val members: StateFlow<List<Member>> = _activeRoomName
+        .flatMapLatest { room ->
+            if (room != null) repository.getMembersFlow(room) else flowOf(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val trashState: StateFlow<TrashState?> = _activeRoomName
+        .flatMapLatest { room ->
+            if (room != null) repository.getTrashStateFlow(room) else flowOf(null)
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = null
         )
 
-    val recentLogs: StateFlow<List<HistoryLog>> = repository.recentLogsFlow
+    val recentLogs: StateFlow<List<HistoryLog>> = _activeRoomName
+        .flatMapLatest { room ->
+            if (room != null) repository.getRecentLogsFlow(room) else flowOf(emptyList())
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -53,13 +77,77 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             repository.initDefaultData()
-            // Try fetching online sync on startup
-            try {
-                repository.fetchFromFirebase()
-            } catch (e: Exception) {
-                // Fail silently on first launch
+            // Set initial active room to default if rooms are loaded
+            val rooms = repository.getAllRooms()
+            if (rooms.isNotEmpty()) {
+                _activeRoomName.value = rooms.first().roomName
+                try {
+                    repository.fetchFromFirebase(rooms.first().roomName)
+                } catch (e: Exception) {
+                    // Fail silently on first launch
+                }
             }
             _isLoading.value = false
+        }
+    }
+
+    suspend fun checkLoginCredentials(email: String, secret: String): List<LoginMatch> {
+        val emailNorm = email.trim().lowercase()
+        val passwordNorm = secret.trim()
+        val matches = mutableListOf<LoginMatch>()
+
+        // 1. Check all rooms to find where they are Admin
+        val rooms = database.dormRoomDao().getAllRooms()
+        for (room in rooms) {
+            if (room.adminEmail.lowercase() == emailNorm && room.adminPassword == passwordNorm) {
+                matches.add(LoginMatch(room.roomName, "admin", room.adminName))
+            }
+        }
+
+        // 2. Check all members of all rooms
+        val allMembers = database.memberDao().getAllMembers()
+        for (member in allMembers) {
+            if (member.email.lowercase() == emailNorm && member.password == passwordNorm) {
+                // Avoid duplicates for the same room if they have admin privileges
+                if (matches.none { it.roomName == member.roomName }) {
+                    matches.add(LoginMatch(member.roomName, "user", member.name))
+                }
+            }
+        }
+        return matches
+    }
+
+    fun selectRoom(roomName: String) {
+        viewModelScope.launch {
+            _activeRoomName.value = roomName
+            _isLoading.value = true
+            try {
+                repository.fetchFromFirebase(roomName)
+            } catch (e: Exception) {
+                // Fail silently
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun registerRoom(
+        roomName: String,
+        adminName: String,
+        adminEmail: String,
+        adminPassword: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val success = repository.registerRoom(roomName, adminName, adminEmail, adminPassword)
+            if (success) {
+                _statusMessage.emit("Đăng ký thành công phòng: $roomName!")
+                _activeRoomName.value = roomName // Set active room
+            } else {
+                _statusMessage.emit("Phòng '$roomName' đã tồn tại hoặc tên phòng không hợp lệ!")
+            }
+            _isLoading.value = false
+            onResult(success)
         }
     }
 
@@ -74,9 +162,10 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateMembers(membersList: List<Member>) {
+        val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            repository.updateMembers(membersList)
+            repository.updateMembers(room, membersList)
             _statusMessage.emit("Đã cập nhật danh sách thành viên!")
             _isLoading.value = false
         }
@@ -92,18 +181,20 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun reportTrashFull(reporterName: String) {
+        val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.reportTrashFull(reporterName)
+            val result = repository.reportTrashFull(room, reporterName)
             _statusMessage.emit(result.second ?: "Báo rác đầy thành công!")
             _isLoading.value = false
         }
     }
 
     fun confirmTrashDumped(dumperName: String) {
+        val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            val success = repository.confirmTrashDumped(dumperName)
+            val success = repository.confirmTrashDumped(room, dumperName)
             if (success) {
                 _statusMessage.emit("Cám ơn $dumperName! Lượt đổ rác đã được cập nhật thành công.")
             } else {
@@ -114,45 +205,49 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun saveFirebaseSettings(url: String, apiKey: String, projectId: String) {
+        val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            repository.updateFirebaseSettings(url, apiKey, projectId)
+            repository.updateFirebaseSettings(room, url, apiKey, projectId)
             _statusMessage.emit("Lưu thành công cài đặt Firebase Realtime Database!")
             _isLoading.value = false
         }
     }
 
     fun saveResendSettings(resendKey: String, webConfirmUrl: String) {
+        val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            repository.updateResendSettings(resendKey, webConfirmUrl)
+            repository.updateResendSettings(room, resendKey, webConfirmUrl)
             _statusMessage.emit("Đã lưu cấu hình Email & Link Xác nhận nhanh!")
             _isLoading.value = false
         }
     }
 
     fun saveAdminCredentials(email: String, secret: String) {
+        val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            repository.updateAdminCredentials(email, secret)
+            repository.updateAdminCredentials(room, email, secret)
             _statusMessage.emit("Đã cập nhật thông tin bảo mật tài khoản Admin mới thành công!")
             _isLoading.value = false
         }
     }
 
     fun syncNow() {
+        val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
             try {
                 val state = trashState.value
                 if (state != null && state.firebaseDbUrl.isNotBlank()) {
                     // Try fetch first
-                    val fetched = repository.fetchFromFirebase()
+                    val fetched = repository.fetchFromFirebase(room)
                     if (fetched) {
                         _statusMessage.emit("🔄 Đã đồng bộ trạng thái mới nhất từ Firebase!")
                     } else {
                         // If empty or fetch failed, push our local state to Firebase
-                        val pushed = repository.syncToFirebase()
+                        val pushed = repository.syncToFirebase(room)
                         if (pushed) {
                             _statusMessage.emit("📤 Đã tải trạng thái hiện tại lên Firebase!")
                         } else {

@@ -55,6 +55,15 @@ android {
     compose = true
     buildConfig = true
   }
+  packaging {
+    resources {
+      excludes += "/META-INF/{AL2.0,LGPL2.1}"
+      excludes += "META-INF/NOTICE.md"
+      excludes += "META-INF/LICENSE.md"
+      excludes += "META-INF/LICENSE.txt"
+      excludes += "META-INF/NOTICE.txt"
+    }
+  }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
@@ -100,6 +109,8 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  implementation(libs.android.mail)
+  implementation(libs.android.activation)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

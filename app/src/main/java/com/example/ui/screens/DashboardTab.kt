@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -255,9 +256,11 @@ fun DashboardTab(
                                 tint = if (isFull) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .animateContentSize()
+                                    .graphicsLayer(
+                                        scaleX = scale,
+                                        scaleY = scale
+                                    )
                                     .padding(2.dp)
-                                    .size(40.dp * scale)
                             )
                         }
                         Spacer(modifier = Modifier.height(16.dp))
@@ -284,7 +287,7 @@ fun DashboardTab(
                             )
                         }
 
-                        Divider(
+                        HorizontalDivider(
                             modifier = Modifier.padding(vertical = 16.dp),
                             color = if (isFull) MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
                             else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)

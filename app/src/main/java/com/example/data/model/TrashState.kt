@@ -5,8 +5,8 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "trash_state")
 data class TrashState(
-    @PrimaryKey val id: Int = 1,
-    val currentTurnIndex: Int = 0, // 0 to 6 (represents standard index of roommates)
+    @PrimaryKey val roomName: String,
+    val currentTurnIndex: Int = 0, // 0 to 6 (represents index of roommates in the room)
     val isTrashFull: Boolean = false,
     val reportedByName: String = "",
     val reportedAt: Long = 0L,
