@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "22316404662",
+    "firebase_url": "https://dormtrashguard-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "dormtrashguard",
+    "storage_bucket": "dormtrashguard.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:22316404662:android:057af93b66d91eba667b17",
+        "android_client_info": {
+          "package_name": "com.aistudio.dormtrash.kuzpwg"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDaNOXruZ2d1YjtE7DM12jttY70Qto1xZ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
