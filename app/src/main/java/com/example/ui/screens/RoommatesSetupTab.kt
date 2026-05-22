@@ -111,7 +111,7 @@ fun RoommatesSetupTab(
                         if (editedMembers.size > 1) {
                             IconButton(
                                 onClick = {
-                                    editedMembers.removeAt(index)
+                                    editedMembers.remove(member)
                                     hasChanges = true
                                 },
                                 modifier = Modifier
@@ -133,8 +133,11 @@ fun RoommatesSetupTab(
                     OutlinedTextField(
                         value = member.name,
                         onValueChange = { newVal ->
-                            editedMembers[index] = member.copy(name = newVal)
-                            hasChanges = true
+                            val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
+                            if (targetIndex != -1) {
+                                editedMembers[targetIndex] = member.copy(name = newVal)
+                                hasChanges = true
+                            }
                         },
                         label = { Text("Họ và Tên", fontSize = 12.sp) },
                         singleLine = true,
@@ -152,8 +155,11 @@ fun RoommatesSetupTab(
                     OutlinedTextField(
                         value = member.email,
                         onValueChange = { newVal ->
-                            editedMembers[index] = member.copy(email = newVal)
-                            hasChanges = true
+                            val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
+                            if (targetIndex != -1) {
+                                editedMembers[targetIndex] = member.copy(email = newVal)
+                                hasChanges = true
+                            }
                         },
                         label = { Text("Địa chỉ Email", fontSize = 12.sp) },
                         singleLine = true,
@@ -172,8 +178,11 @@ fun RoommatesSetupTab(
                     OutlinedTextField(
                         value = member.password,
                         onValueChange = { newVal ->
-                            editedMembers[index] = member.copy(password = newVal)
-                            hasChanges = true
+                            val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
+                            if (targetIndex != -1) {
+                                editedMembers[targetIndex] = member.copy(password = newVal)
+                                hasChanges = true
+                            }
                         },
                         label = { Text("Mật khẩu riêng (đăng nhập user)", fontSize = 12.sp) },
                         singleLine = true,

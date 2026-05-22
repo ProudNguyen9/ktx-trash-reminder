@@ -185,7 +185,8 @@
             try {
                 const prevIndex = appState.currentTurnIndex;
                 const prevName = getCurrentMemberName(prevIndex);
-                const nextIndex = (prevIndex + 1) % 7;
+                const membersCount = (appState && appState.members && appState.members.length) ? appState.members.length : 7;
+                const nextIndex = (prevIndex + 1) % membersCount;
                 const nextName = getCurrentMemberName(nextIndex);
 
                 // Update changes locally for the PATCH body
