@@ -192,6 +192,20 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateCurrentTurnMember(memberId: Int) {
+        val room = _activeRoomName.value ?: return
+        viewModelScope.launch {
+            _isLoading.value = true
+            val success = repository.updateCurrentTurnMember(room, memberId)
+            if (success) {
+                _statusMessage.emit("Đã cập nhật người đang tới lượt đổ rác!")
+            } else {
+                _statusMessage.emit("Không thể đổi lượt đổ rác sang thành viên đang vắng mặt hoặc không hợp lệ.")
+            }
+            _isLoading.value = false
+        }
+    }
+
     fun deleteMember(member: Member) {
         viewModelScope.launch {
             _isLoading.value = true

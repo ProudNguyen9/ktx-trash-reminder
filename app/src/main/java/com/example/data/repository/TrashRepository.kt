@@ -152,6 +152,30 @@ class TrashRepository(
         normalizeCurrentTurnAfterMemberChange(roomName)
     }
 
+    suspend fun updateCurrentTurnMember(roomName: String, memberId: Int): Boolean {
+        val currentState = trashStateDao.getTrashState(roomName) ?: return false
+        val members = memberDao.getMembersByRoom(roomName)
+        if (members.isEmpty()) return false
+
+        val targetIndex = members.indexOfFirst { it.id == memberId }
+        if (targetIndex == -1) return false
+
+        val targetMember = members[targetIndex]
+        if (targetMember.isAbsent) return false
+
+        val updatedState = currentState.copy(currentTurnIndex = targetIndex)
+        trashStateDao.insertTrashState(updatedState)
+        historyLogDao.insertLog(
+            HistoryLog(
+                roomName = roomName,
+                message = "Admin đã đổi lượt đổ rác hiện tại sang ${targetMember.name}.",
+                type = "CONFIG"
+            )
+        )
+        syncToFirebase(roomName, updatedState, members)
+        return true
+    }
+
     suspend fun deleteRoom(roomName: String): Boolean {
         val room = dormRoomDao.getRoom(roomName) ?: return false
         memberDao.deleteAllMembersInRoom(roomName)
@@ -392,10 +416,11 @@ class TrashRepository(
         }
 
         val normalizedMembers = keptOldMembers.mapIndexed { index, member -> member.copy(turnOrder = index) }
-        val nextCurrentIndex = currentMemberId
-            ?.let { id -> normalizedMembers.indexOfFirst { it.id == id } }
-            ?.takeIf { it >= 0 }
-            ?: currentState.currentTurnIndex.floorMod(normalizedMembers.size)
+        val nextCurrentIndex = if (normalizedMembers.isEmpty()) {
+            0
+        } else {
+            originalTurnIndex.floorMod(normalizedMembers.size)
+        }
 
         return QueueUpdateResult(normalizedMembers, nextCurrentIndex)
     }

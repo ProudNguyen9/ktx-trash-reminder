@@ -26,9 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -110,9 +108,13 @@ fun DashboardTab(
     onReportFullClick: () -> Unit,
     onConfirmDumpClick: () -> Unit
 ) {
+    val visibleMembers = members.filterNot { it.isAbsent }
     val rawTurnIndex = trashState?.currentTurnIndex ?: 0
     val currentTurnIndex = if (members.isNotEmpty()) ((rawTurnIndex % members.size) + members.size) % members.size else 0
-    val activeMember = members.getOrNull(currentTurnIndex)
+    val activeMember = members.getOrNull(currentTurnIndex)?.takeIf { !it.isAbsent }
+    val activeVisibleIndex = activeMember?.let { current ->
+        visibleMembers.indexOfFirst { it.id == current.id }
+    } ?: -1
     val isFull = trashState?.isTrashFull == true
 
     LazyColumn(
@@ -143,7 +145,7 @@ fun DashboardTab(
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                "${members.size} người",
+                                "${visibleMembers.size} người",
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Black,
@@ -152,56 +154,75 @@ fun DashboardTab(
                         }
                     }
                     Spacer(modifier = Modifier.height(18.dp))
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        itemsIndexed(members, key = { _, member -> member.id }) { index, member ->
-                            val selected = index == currentTurnIndex
-                            Column(
-                                modifier = Modifier.width(58.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(if (selected) 42.dp else 34.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (selected) {
-                                                Brush.linearGradient(
-                                                    listOf(
-                                                        if (isFull) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                                        MaterialTheme.colorScheme.secondary
+                    if (visibleMembers.isEmpty()) {
+                        Text(
+                            text = "Chưa có thành viên khả dụng trong vòng lặp.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            visibleMembers.chunked(4).forEachIndexed { rowIndex, memberRow ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    memberRow.forEachIndexed { columnIndex, member ->
+                                        val absoluteIndex = rowIndex * 4 + columnIndex
+                                        val selected = absoluteIndex == activeVisibleIndex
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier
+                                                    .size(if (selected) 42.dp else 34.dp)
+                                                    .clip(CircleShape)
+                                                    .background(
+                                                        if (selected) {
+                                                            Brush.linearGradient(
+                                                                listOf(
+                                                                    if (isFull) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                                                    MaterialTheme.colorScheme.secondary
+                                                                )
+                                                            )
+                                                        } else {
+                                                            Brush.linearGradient(
+                                                                listOf(
+                                                                    MaterialTheme.colorScheme.surfaceVariant,
+                                                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                                                                )
+                                                            )
+                                                        }
                                                     )
-                                                )
-                                            } else {
-                                                Brush.linearGradient(
-                                                    listOf(
-                                                        MaterialTheme.colorScheme.surfaceVariant,
-                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                                                    )
+                                            ) {
+                                                Text(
+                                                    text = "${absoluteIndex + 1}",
+                                                    fontWeight = FontWeight.Black,
+                                                    color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontSize = 13.sp
                                                 )
                                             }
-                                        )
-                                ) {
-                                    Text(
-                                        text = "${index + 1}",
-                                        fontWeight = FontWeight.Black,
-                                        color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 13.sp
-                                    )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = member.name.split(" ").lastOrNull().orEmpty().ifBlank { "T${member.id}" },
+                                                fontSize = 10.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+                                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                    repeat(4 - memberRow.size) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = member.name.split(" ").lastOrNull().orEmpty().ifBlank { "T${member.id}" },
-                                    fontSize = 10.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
-                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         }
                     }

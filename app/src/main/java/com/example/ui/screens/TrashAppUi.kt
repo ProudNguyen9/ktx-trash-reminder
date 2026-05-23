@@ -218,8 +218,10 @@ fun TrashAppUi(
                         1 -> RoommatesSetupTab(
                             roomName = activeRoomName ?: "",
                             members = members,
+                            trashState = trashState,
                             canEdit = loggedInRole == "admin",
-                            onSaveMembers = { updatedList -> if (loggedInRole == "admin") viewModel.updateMembers(updatedList) }
+                            onSaveMembers = { updatedList -> if (loggedInRole == "admin") viewModel.updateMembers(updatedList) },
+                            onUpdateCurrentTurn = { memberId -> if (loggedInRole == "admin") viewModel.updateCurrentTurnMember(memberId) }
                         )
                         2 -> if (loggedInRole == "admin") {
                             ConfigTab(

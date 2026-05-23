@@ -57,16 +57,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Member
+import com.example.data.model.TrashState
 
 @Composable
 fun RoommatesSetupTab(
     roomName: String,
     members: List<Member>,
+    trashState: TrashState?,
     canEdit: Boolean = true,
-    onSaveMembers: (List<Member>) -> Unit
+    onSaveMembers: (List<Member>) -> Unit,
+    onUpdateCurrentTurn: (Int) -> Unit
 ) {
     val editedMembers = remember(members) { members.toMutableStateList() }
     var hasChanges by remember { mutableStateOf(false) }
+    val activeTurnIndex = if (editedMembers.isNotEmpty()) {
+        ((trashState?.currentTurnIndex ?: 0) % editedMembers.size + editedMembers.size) % editedMembers.size
+    } else {
+        -1
+    }
+    val activeTurnMemberId = editedMembers.getOrNull(activeTurnIndex)?.id
 
     fun moveMember(fromIndex: Int, toIndex: Int) {
         if (fromIndex !in editedMembers.indices || toIndex !in editedMembers.indices || fromIndex == toIndex) return
@@ -138,6 +147,9 @@ fun RoommatesSetupTab(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(member.name.ifBlank { "Thành viên ${member.id}" }, fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                             Text("Vị trí lượt ${index + 1}/${editedMembers.size}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            if (activeTurnMemberId == member.id && !member.isAbsent) {
+                                Text("Đang là lượt đổ rác hiện tại", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                            }
                             if (member.isAbsent) {
                                 Text("Đang vắng mặt", fontSize = 11.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                             }
@@ -217,6 +229,23 @@ fun RoommatesSetupTab(
                         enabled = canEdit,
                         modifier = Modifier.testTag("member_password_input_${member.id}")
                     )
+                    if (canEdit) {
+                        OutlinedButton(
+                            onClick = { onUpdateCurrentTurn(member.id) },
+                            enabled = !member.isAbsent && activeTurnMemberId != member.id,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("set_current_turn_${member.id}"),
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Icon(Icons.Default.Check, null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (activeTurnMemberId == member.id) "Đang là lượt hiện tại" else "Đặt làm lượt đổ rác hiện tại",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -17,3 +17,13 @@ local.properties
 .env
 .firebase/
 debug.keystore
+debug.keystore.base64
+*.zip
+.gradle/
+build/
+app/build/
+.build-outputs/
+gradle-9.1.0/
+*.apk
+*.aab
+*.keystore
