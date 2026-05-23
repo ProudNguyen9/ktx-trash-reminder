@@ -10,9 +10,11 @@ import com.example.data.model.LoginMatch
 import com.example.data.model.Member
 import com.example.data.model.TrashState
 import com.example.data.repository.TrashRepository
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrashViewModel(application: Application) : AndroidViewModel(application) {
@@ -130,6 +132,17 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun registerFcmTokenForLogin(roomName: String, email: String) {
+        viewModelScope.launch {
+            try {
+                val token = FirebaseMessaging.getInstance().token.await()
+                repository.saveFcmToken(roomName, email, token)
+            } catch (e: Exception) {
+                _statusMessage.emit("Không lưu được token thông báo đẩy: ${e.localizedMessage}")
+            }
+        }
+    }
+
     fun registerRoom(
         roomName: String,
         adminName: String,
@@ -180,6 +193,22 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteCurrentRoom(onDeleted: () -> Unit) {
+        val room = _activeRoomName.value ?: return
+        viewModelScope.launch {
+            _isLoading.value = true
+            val deleted = repository.deleteRoom(room)
+            if (deleted) {
+                _activeRoomName.value = null
+                _statusMessage.emit("Đã xóa phòng $room và toàn bộ dữ liệu liên quan.")
+                onDeleted()
+            } else {
+                _statusMessage.emit("Không thể xóa phòng hiện tại.")
+            }
+            _isLoading.value = false
+        }
+    }
+
     fun reportTrashFull(reporterName: String) {
         val room = _activeRoomName.value ?: return
         viewModelScope.launch {
@@ -190,15 +219,15 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun confirmTrashDumped(dumperName: String) {
+    fun confirmTrashDumped(dumperName: String, loggedInEmail: String) {
         val room = _activeRoomName.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            val success = repository.confirmTrashDumped(room, dumperName)
+            val success = repository.confirmTrashDumped(room, dumperName, loggedInEmail)
             if (success) {
                 _statusMessage.emit("Cám ơn $dumperName! Lượt đổ rác đã được cập nhật thành công.")
             } else {
-                _statusMessage.emit("Không thể cập nhật trạng thái.")
+                _statusMessage.emit("Bạn chưa tới lượt đổ rác hoặc thông tin đăng nhập không khớp.")
             }
             _isLoading.value = false
         }

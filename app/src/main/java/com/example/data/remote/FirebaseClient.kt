@@ -26,11 +26,20 @@ class FirebaseClient {
         val members: List<FirebaseMember>
     )
 
+    data class FcmTokenPayload(
+        val email: String,
+        val token: String,
+        val updatedAt: Long
+    )
+
     data class FirebaseMember(
         val id: Int,
         val name: String,
         val email: String,
-        val password: String = "user123"
+        val password: String = "user123",
+        val isAbsent: Boolean = false,
+        val turnOrder: Int = id,
+        val absentReturnDistance: Int = -1
     )
 
     suspend fun syncToFirebase(
@@ -53,7 +62,17 @@ class FirebaseClient {
             isTrashFull = state.isTrashFull,
             reportedByName = state.reportedByName,
             reportedAt = state.reportedAt,
-            members = members.map { FirebaseMember(it.id, it.name, it.email, it.password) }
+            members = members.map {
+                FirebaseMember(
+                    id = it.id,
+                    name = it.name,
+                    email = it.email,
+                    password = it.password,
+                    isAbsent = it.isAbsent,
+                    turnOrder = it.turnOrder,
+                    absentReturnDistance = it.absentReturnDistance
+                )
+            }
         )
 
         return@withContext try {
@@ -118,4 +137,52 @@ class FirebaseClient {
             null
         }
     }
+    suspend fun saveFcmToken(
+        dbUrl: String,
+        apiKey: String,
+        roomName: String,
+        email: String,
+        token: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (dbUrl.isBlank() || roomName.isBlank() || email.isBlank() || token.isBlank()) return@withContext false
+
+        val formattedUrl = dbUrl.trim().removeSuffix("/")
+        val safeRoomName = roomName.filter { it.isLetterOrDigit() }.lowercase()
+        val emailKey = email.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "_")
+        val url = if (apiKey.isNotBlank()) {
+            "$formattedUrl/$safeRoomName/fcmTokens/$emailKey.json?auth=$apiKey"
+        } else {
+            "$formattedUrl/$safeRoomName/fcmTokens/$emailKey.json"
+        }
+
+        val payload = FcmTokenPayload(
+            email = email.trim().lowercase(),
+            token = token,
+            updatedAt = System.currentTimeMillis()
+        )
+
+        return@withContext try {
+            val adapter = moshi.adapter(FcmTokenPayload::class.java)
+            val json = adapter.toJson(payload)
+            val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url(url)
+                .put(body)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    Log.d("FirebaseClient", "Successfully saved FCM token")
+                    true
+                } else {
+                    Log.e("FirebaseClient", "Failed to save FCM token: ${response.code} ${response.message}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseClient", "Error saving FCM token", e)
+            false
+        }
+    }
+
 }

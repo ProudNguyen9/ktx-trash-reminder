@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -37,8 +38,21 @@ fun TrashAppUi(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val activeRoomName by viewModel.activeRoomName.collectAsStateWithLifecycle()
 
-    var loggedInEmail by rememberSaveable { mutableStateOf("") }
-    var loggedInRole by rememberSaveable { mutableStateOf("") } // "" (not logged in), "admin", "user"
+    val sessionPrefs = remember {
+        context.getSharedPreferences("login_session", Context.MODE_PRIVATE)
+    }
+    var loggedInEmail by rememberSaveable { mutableStateOf(sessionPrefs.getString("email", "").orEmpty()) }
+    var loggedInRole by rememberSaveable { mutableStateOf(sessionPrefs.getString("role", "").orEmpty()) } // "" (not logged in), "admin", "user"
+    val savedRoomName = remember { sessionPrefs.getString("roomName", "").orEmpty() }
+
+    LaunchedEffect(savedRoomName) {
+        if (loggedInRole.isNotEmpty() && savedRoomName.isNotBlank()) {
+            viewModel.selectRoom(savedRoomName)
+            if (loggedInEmail.isNotBlank()) {
+                viewModel.registerFcmTokenForLogin(savedRoomName, loggedInEmail)
+            }
+        }
+    }
 
     if (loggedInRole.isEmpty()) {
         LoginScreen(
@@ -47,8 +61,14 @@ fun TrashAppUi(
             },
             onLoginSuccess = { email, role, roomName ->
                 viewModel.selectRoom(roomName)
+                viewModel.registerFcmTokenForLogin(roomName, email)
                 loggedInEmail = email
                 loggedInRole = role
+                sessionPrefs.edit()
+                    .putString("email", email)
+                    .putString("role", role)
+                    .putString("roomName", roomName)
+                    .apply()
             },
             checkCredentials = { email, password ->
                 viewModel.checkLoginCredentials(email, password)
@@ -60,8 +80,8 @@ fun TrashAppUi(
     var activeTab by remember { mutableStateOf(0) } // 0: Dashboard, 1: Cấu hình Roommates, 2: Cấu hình Admin
 
     // List of dialogues state
-    var showFullReportDialog by remember { mutableStateOf(false) }
     var showConfirmDumpDialog by remember { mutableStateOf(false) }
+    var showDeleteRoomDialog by remember { mutableStateOf(false) }
 
     // Toast and status messages trigger
     LaunchedEffect(Unit) {
@@ -94,18 +114,21 @@ fun TrashAppUi(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { viewModel.syncNow() },
-                        modifier = Modifier.testTag("sync_app_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Sync Now",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                    if (loggedInRole == "admin") {
+                        IconButton(
+                            onClick = { showDeleteRoomDialog = true },
+                            modifier = Modifier.testTag("delete_room_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Xóa phòng",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                     IconButton(
                         onClick = {
+                            sessionPrefs.edit().clear().apply()
                             loggedInEmail = ""
                             loggedInRole = ""
                             activeTab = 0
@@ -188,7 +211,14 @@ fun TrashAppUi(
                         members = members,
                         trashState = trashState,
                         logs = recentLogs,
-                        onReportFullClick = { showFullReportDialog = true },
+                        onReportFullClick = {
+                            val reporterName = members
+                                .find { it.email.trim().lowercase() == loggedInEmail.trim().lowercase() }
+                                ?.name
+                                ?.takeIf { it.isNotBlank() }
+                                ?: loggedInEmail.ifBlank { "Người dùng" }
+                            viewModel.reportTrashFull(reporterName)
+                        },
                         onConfirmDumpClick = { showConfirmDumpDialog = true }
                     )
                     1 -> {
@@ -259,32 +289,56 @@ fun TrashAppUi(
                 }
             }
 
-            // Dialog for reporting trash full
-            if (showFullReportDialog) {
+            // Dialog for confirming trash dumped
+            if (showConfirmDumpDialog) {
                 val matchingMember = members.find { it.email.trim().lowercase() == loggedInEmail.trim().lowercase() }
-                val defaultReporterName = matchingMember?.name ?: ""
-                ReportFullDialog(
+                val rawTurnIndex = trashState?.currentTurnIndex ?: 0
+                val safeTurnIndex = if (members.isNotEmpty()) {
+                    ((rawTurnIndex % members.size) + members.size) % members.size
+                } else {
+                    0
+                }
+                val activeMember = members.getOrNull(safeTurnIndex)
+                ConfirmDumpDialog(
                     members = members,
-                    defaultName = defaultReporterName,
-                    onDismiss = { showFullReportDialog = false },
-                    onConfirm = { reporter ->
-                        showFullReportDialog = false
-                        viewModel.reportTrashFull(reporter)
+                    defaultName = matchingMember?.name ?: "",
+                    activeMember = activeMember,
+                    onDismiss = { showConfirmDumpDialog = false },
+                    onConfirm = { dumper ->
+                        showConfirmDumpDialog = false
+                        viewModel.confirmTrashDumped(dumper, loggedInEmail)
                     }
                 )
             }
 
-            // Dialog for confirming trash dumped
-            if (showConfirmDumpDialog) {
-                val matchingMember = members.find { it.email.trim().lowercase() == loggedInEmail.trim().lowercase() }
-                val defaultDumperName = matchingMember?.name ?: ""
-                ConfirmDumpDialog(
-                    members = members,
-                    defaultName = defaultDumperName,
-                    onDismiss = { showConfirmDumpDialog = false },
-                    onConfirm = { dumper ->
-                        showConfirmDumpDialog = false
-                        viewModel.confirmTrashDumped(dumper)
+            if (showDeleteRoomDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteRoomDialog = false },
+                    icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    title = { Text("Xóa phòng hiện tại?", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Text("Hành động này sẽ xóa phòng ${activeRoomName ?: "hiện tại"}, danh sách thành viên, trạng thái và lịch sử hoạt động trên máy. Không thể hoàn tác.")
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showDeleteRoomDialog = false
+                                viewModel.deleteCurrentRoom {
+                                    sessionPrefs.edit().clear().apply()
+                                    loggedInEmail = ""
+                                    loggedInRole = ""
+                                    activeTab = 0
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Xóa phòng")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteRoomDialog = false }) {
+                            Text("Hủy")
+                        }
                     }
                 )
             }

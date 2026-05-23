@@ -100,8 +100,13 @@ class TrashRepository(
     }
 
     suspend fun updateMember(member: Member) {
-        memberDao.insertMember(member)
-        syncToFirebase(member.roomName)
+        val currentMembers = memberDao.getMembersByRoom(member.roomName)
+        val updatedMembers = if (currentMembers.any { it.id == member.id }) {
+            currentMembers.map { current -> if (current.id == member.id) member else current }
+        } else {
+            currentMembers + member
+        }
+        updateMembers(member.roomName, updatedMembers)
     }
 
     suspend fun deleteMember(member: Member) {
@@ -110,8 +115,27 @@ class TrashRepository(
     }
 
     suspend fun updateMembers(roomName: String, members: List<Member>) {
-        memberDao.insertMembers(members)
-        syncToFirebase(roomName)
+        val currentState = trashStateDao.getTrashState(roomName)
+        val oldMembers = memberDao.getMembersByRoom(roomName)
+        val queueUpdate = applyAbsenceReturnQueueRule(roomName, oldMembers, members, currentState)
+
+        memberDao.deleteAllMembersInRoom(roomName)
+        memberDao.insertMembers(queueUpdate.members)
+
+        if (currentState != null) {
+            trashStateDao.insertTrashState(currentState.copy(currentTurnIndex = queueUpdate.currentTurnIndex))
+        }
+
+        normalizeCurrentTurnAfterMemberChange(roomName)
+    }
+
+    suspend fun deleteRoom(roomName: String): Boolean {
+        val room = dormRoomDao.getRoom(roomName) ?: return false
+        memberDao.deleteAllMembersInRoom(roomName)
+        historyLogDao.clearAllLogs(roomName)
+        trashStateDao.deleteTrashState(roomName)
+        dormRoomDao.deleteRoom(room)
+        return true
     }
 
     suspend fun updateTrashStateOnly(state: TrashState) {
@@ -122,20 +146,20 @@ class TrashRepository(
     // Mark trash as FULL and send email notification to the person on turn
     suspend fun reportTrashFull(roomName: String, reporterName: String): Pair<Boolean, String?> {
         val currentState = trashStateDao.getTrashState(roomName) ?: return Pair(false, "Không tìm thấy trạng thái rác.")
-        if (currentState.isTrashFull) {
-            return Pair(false, "Thùng rác đã được báo đầy từ trước rồi!")
-        }
-
         val members = memberDao.getMembersByRoom(roomName)
         if (members.isEmpty()) {
             return Pair(false, "Không tìm thấy danh sách thành viên.")
         }
 
-        val currentTurnMember = members.getOrNull(currentState.currentTurnIndex)
+        val safeTurnIndex = currentState.currentTurnIndex.floorMod(members.size)
+        val currentTurnIndex = findNextAvailableTurnIndex(members, safeTurnIndex, includeStart = true)
+            ?: return Pair(false, "Tất cả thành viên đang vắng mặt, không thể gửi email nhắc rác.")
+        val currentTurnMember = members.getOrNull(currentTurnIndex)
             ?: return Pair(false, "Thành viên hiện tại không hợp lệ.")
 
         // Update state locally
         val updatedState = currentState.copy(
+            currentTurnIndex = currentTurnIndex,
             isTrashFull = true,
             reportedByName = reporterName,
             reportedAt = System.currentTimeMillis()
@@ -143,7 +167,7 @@ class TrashRepository(
         trashStateDao.insertTrashState(updatedState)
 
         // Log to history
-        val logMsg = "$reporterName đã báo rác đầy! Đến lượt ${currentTurnMember.name} (T${currentTurnMember.id}) đi đổ."
+        val logMsg = "$reporterName đã thông báo rác đầy."
         historyLogDao.insertLog(HistoryLog(roomName = roomName, message = logMsg, type = "FULL"))
 
         // Sync to Firebase
@@ -187,17 +211,24 @@ class TrashRepository(
     }
 
     // Confirm that trash is dumped, advancing the sequence (0-n)
-    suspend fun confirmTrashDumped(roomName: String, dumperName: String): Boolean {
+    suspend fun confirmTrashDumped(roomName: String, dumperName: String, loggedInEmail: String): Boolean {
         val currentState = trashStateDao.getTrashState(roomName) ?: return false
         val members = memberDao.getMembersByRoom(roomName)
         if (members.isEmpty()) return false
 
-        val previousIndex = currentState.currentTurnIndex
+        val safeTurnIndex = currentState.currentTurnIndex.floorMod(members.size)
+        val previousIndex = findNextAvailableTurnIndex(members, safeTurnIndex, includeStart = true) ?: return false
         val previousMember = members.getOrNull(previousIndex)
+        if (
+            previousMember == null ||
+            dumperName.trim() != previousMember.name.trim() ||
+            loggedInEmail.trim().lowercase() != previousMember.email.trim().lowercase()
+        ) {
+            return false
+        }
 
-        // Next Index dynamically cycled based on members size
-        val nextIndex = if (members.isNotEmpty()) (previousIndex + 1) % members.size else 0
-        val nextMember = members.getOrNull(nextIndex)
+        // Next Index dynamically cycles and skips absent members
+        val nextIndex = findNextAvailableTurnIndex(members, previousIndex + 1, includeStart = true) ?: previousIndex
 
         // Update state locally
         val updatedState = currentState.copy(
@@ -209,15 +240,176 @@ class TrashRepository(
         trashStateDao.insertTrashState(updatedState)
 
         // Log to history
-        val previousName = previousMember?.name ?: "Thành viên $previousIndex"
-        val nextName = nextMember?.name ?: "Thành viên $nextIndex"
-        val logMsg = "$dumperName đã hoàn thành đổ rác! Lượt tiếp theo chuyển giao từ $previousName sang $nextName."
+        val logMsg = "$dumperName đã đổ rác."
         historyLogDao.insertLog(HistoryLog(roomName = roomName, message = logMsg, type = "DUMPED"))
 
         // Sync to Firebase
         syncToFirebase(roomName, updatedState, members)
         return true
     }
+
+    private data class QueueUpdateResult(
+        val members: List<Member>,
+        val currentTurnIndex: Int
+    )
+
+    private suspend fun applyAbsenceReturnQueueRule(
+        roomName: String,
+        oldMembers: List<Member>,
+        requestedMembers: List<Member>,
+        currentState: TrashState?
+    ): QueueUpdateResult {
+        if (requestedMembers.isEmpty()) {
+            return QueueUpdateResult(emptyList(), 0)
+        }
+
+        if (oldMembers.isEmpty() || currentState == null) {
+            val initializedMembers = requestedMembers
+                .distinctBy { it.id }
+                .sortedBy { it.id }
+                .mapIndexed { index, member ->
+                    member.copy(
+                        roomName = roomName,
+                        turnOrder = index,
+                        absentReturnDistance = if (member.isAbsent) 0 else -1
+                    )
+                }
+            return QueueUpdateResult(initializedMembers, 0)
+        }
+
+        val requestedById = requestedMembers.distinctBy { it.id }.associateBy { it.id }
+        val oldById = oldMembers.associateBy { it.id }
+        val originalTurnIndex = currentState.currentTurnIndex.floorMod(oldMembers.size)
+        val currentMemberId = oldMembers.getOrNull(originalTurnIndex)?.id
+        val returningMembers = mutableListOf<Pair<Member, Int>>()
+
+        val keptOldMembers = oldMembers
+            .filter { requestedById.containsKey(it.id) }
+            .mapNotNull { oldMember ->
+                val requested = requestedById[oldMember.id] ?: return@mapNotNull null
+                when {
+                    !oldMember.isAbsent && requested.isAbsent -> {
+                        val oldIndex = oldMembers.indexOfFirst { it.id == oldMember.id }
+                        val distance = (oldIndex - originalTurnIndex).floorMod(oldMembers.size)
+                        historyLogDao.insertLog(
+                            HistoryLog(
+                                roomName = roomName,
+                                message = "${requested.name} đã bật vắng mặt. Hệ thống lưu khoảng cách tới lượt hiện tại là $distance.",
+                                type = "SYSTEM"
+                            )
+                        )
+                        oldMember.copy(
+                            name = requested.name,
+                            email = requested.email,
+                            password = requested.password,
+                            isAbsent = true,
+                            absentReturnDistance = distance
+                        )
+                    }
+                    oldMember.isAbsent && !requested.isAbsent -> {
+                        val savedDistance = if (oldMember.absentReturnDistance >= 0) {
+                            oldMember.absentReturnDistance
+                        } else {
+                            val oldIndex = oldMembers.indexOfFirst { it.id == oldMember.id }
+                            (oldIndex - originalTurnIndex).floorMod(oldMembers.size)
+                        }
+                        returningMembers += oldMember.copy(
+                            name = requested.name,
+                            email = requested.email,
+                            password = requested.password,
+                            isAbsent = false,
+                            absentReturnDistance = -1
+                        ) to savedDistance
+                        null
+                    }
+                    else -> oldMember.copy(
+                        name = requested.name,
+                        email = requested.email,
+                        password = requested.password,
+                        isAbsent = requested.isAbsent,
+                        absentReturnDistance = if (requested.isAbsent) oldMember.absentReturnDistance else -1
+                    )
+                }
+            }
+            .toMutableList()
+
+        val newMembers = requestedMembers
+            .filter { oldById[it.id] == null }
+            .map { member -> member.copy(roomName = roomName, absentReturnDistance = if (member.isAbsent) 0 else -1) }
+        keptOldMembers.addAll(newMembers)
+
+        returningMembers.forEach { (member, savedDistance) ->
+            val currentIndex = currentMemberId?.let { id -> keptOldMembers.indexOfFirst { it.id == id } } ?: -1
+            val baseIndex = if (currentIndex >= 0) currentIndex else 0
+            val insertIndex = if (keptOldMembers.isEmpty()) {
+                0
+            } else {
+                (baseIndex + savedDistance + 1).floorMod(keptOldMembers.size + 1)
+            }
+            keptOldMembers.add(insertIndex, member)
+            historyLogDao.insertLog(
+                HistoryLog(
+                    roomName = roomName,
+                    message = "${member.name} đã quay lại. Hệ thống xếp vào vị trí cách lượt hiện tại ${savedDistance + 1} bước.",
+                    type = "SYSTEM"
+                )
+            )
+        }
+
+        val normalizedMembers = keptOldMembers.mapIndexed { index, member -> member.copy(turnOrder = index) }
+        val nextCurrentIndex = currentMemberId
+            ?.let { id -> normalizedMembers.indexOfFirst { it.id == id } }
+            ?.takeIf { it >= 0 }
+            ?: currentState.currentTurnIndex.floorMod(normalizedMembers.size)
+
+        return QueueUpdateResult(normalizedMembers, nextCurrentIndex)
+    }
+
+    private suspend fun normalizeCurrentTurnAfterMemberChange(roomName: String) {
+        val currentState = trashStateDao.getTrashState(roomName)
+        val members = memberDao.getMembersByRoom(roomName)
+        if (currentState == null || members.isEmpty()) {
+            syncToFirebase(roomName)
+            return
+        }
+
+        val safeTurnIndex = currentState.currentTurnIndex.floorMod(members.size)
+        val nextAvailableIndex = findNextAvailableTurnIndex(members, safeTurnIndex, includeStart = true)
+        val normalizedState = if (nextAvailableIndex != null && nextAvailableIndex != safeTurnIndex) {
+            val skippedMember = members.getOrNull(safeTurnIndex)
+            val nextMember = members.getOrNull(nextAvailableIndex)
+            historyLogDao.insertLog(
+                HistoryLog(
+                    roomName = roomName,
+                    message = "${skippedMember?.name ?: "Thành viên hiện tại"} đang vắng mặt nên lượt đổ rác được chuyển sang ${nextMember?.name ?: "thành viên tiếp theo"}.",
+                    type = "SYSTEM"
+                )
+            )
+            currentState.copy(currentTurnIndex = nextAvailableIndex)
+        } else {
+            currentState.copy(currentTurnIndex = safeTurnIndex)
+        }
+
+        trashStateDao.insertTrashState(normalizedState)
+        syncToFirebase(roomName, normalizedState, members)
+    }
+
+    private fun findNextAvailableTurnIndex(
+        members: List<Member>,
+        startIndex: Int,
+        includeStart: Boolean
+    ): Int? {
+        if (members.isEmpty()) return null
+        val normalizedStart = startIndex.floorMod(members.size)
+        val firstOffset = if (includeStart) 0 else 1
+        for (offset in firstOffset until members.size + firstOffset) {
+            val index = (normalizedStart + offset).floorMod(members.size)
+            if (!members[index].isAbsent) return index
+        }
+        return null
+    }
+
+    private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
 
     // Change settings for Firebase config
     suspend fun updateFirebaseSettings(roomName: String, url: String, secret: String, projectId: String) {
@@ -228,7 +420,6 @@ class TrashRepository(
             firebaseProjectId = projectId
         )
         trashStateDao.insertTrashState(updatedState)
-        historyLogDao.insertLog(HistoryLog(roomName = roomName, message = "Đã cập nhật thông tin đồng bộ Firebase.", type = "CONFIG"))
 
         // Try immediate sync to establish database collection
         syncToFirebase(roomName, updatedState, memberDao.getMembersByRoom(roomName))
@@ -261,6 +452,19 @@ class TrashRepository(
         }
 
         historyLogDao.insertLog(HistoryLog(roomName = roomName, message = "Đã cập nhật thông tin bảo mật tài khoản quản trị Admin.", type = "CONFIG"))
+    }
+
+    suspend fun saveFcmToken(roomName: String, email: String, token: String): Boolean {
+        val state = trashStateDao.getTrashState(roomName) ?: return false
+        val targetDbUrl = state.firebaseDbUrl.ifBlank { BuildConfig.FIREBASE_DB_URL }
+        val targetApiKey = state.firebaseApiKey.ifBlank { BuildConfig.FIREBASE_API_KEY }
+        return firebaseClient.saveFcmToken(
+            dbUrl = targetDbUrl,
+            apiKey = targetApiKey,
+            roomName = roomName,
+            email = email,
+            token = token
+        )
     }
 
     // Manually push current state of a room to Firebase
@@ -331,12 +535,22 @@ class TrashRepository(
             trashStateDao.insertTrashState(updatedState)
 
             // Overwrite members if they were customized remotely
-            val remoteMembers = payload.members.map { Member(roomName, it.id, it.name, it.email, it.password) }
+            val remoteMembers = payload.members.map {
+                Member(
+                    roomName = roomName,
+                    id = it.id,
+                    name = it.name,
+                    email = it.email,
+                    password = it.password,
+                    isAbsent = it.isAbsent,
+                    turnOrder = it.turnOrder,
+                    absentReturnDistance = it.absentReturnDistance
+                )
+            }
             if (remoteMembers.isNotEmpty()) {
                 memberDao.insertMembers(remoteMembers)
             }
 
-            historyLogDao.insertLog(HistoryLog(roomName = roomName, message = "Đồng bộ hóa dữ liệu trực tuyến từ Firebase thành công!", type = "SYSTEM"))
             return true
         }
         return false

@@ -61,7 +61,7 @@ fun RoommatesSetupTab(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        "Cài đặt danh tính và địa chỉ Email nhận thông báo của các thành viên trong phòng kí túc xá.",
+                        "Cài đặt danh tính, email và trạng thái vắng mặt. Thành viên vắng mặt sẽ được tự động bỏ qua khi báo rác đầy và chuyển lượt.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         fontWeight = FontWeight.Medium
@@ -102,11 +102,21 @@ fun RoommatesSetupTab(
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                member.name.ifBlank { "Thành viên thứ ${member.id}" },
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+                            Column {
+                                Text(
+                                    member.name.ifBlank { "Thành viên thứ ${member.id}" },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                if (member.isAbsent) {
+                                    Text(
+                                        "Đang vắng mặt",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
                         }
                         if (editedMembers.size > 1) {
                             IconButton(
@@ -172,6 +182,39 @@ fun RoommatesSetupTab(
                             unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                         )
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Trạng thái",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                if (member.isAbsent) "Vắng mặt - bỏ qua lượt" else "Có mặt - nhận lượt bình thường",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = member.isAbsent,
+                            onCheckedChange = { checked ->
+                                val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
+                                if (targetIndex != -1) {
+                                    editedMembers[targetIndex] = member.copy(isAbsent = checked)
+                                    hasChanges = true
+                                }
+                            },
+                            modifier = Modifier.testTag("member_absent_switch_${member.id}")
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 

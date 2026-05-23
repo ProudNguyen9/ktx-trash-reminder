@@ -27,13 +27,13 @@ interface DormRoomDao {
 
 @Dao
 interface MemberDao {
-    @Query("SELECT * FROM members WHERE roomName = :roomName ORDER BY id ASC")
+    @Query("SELECT * FROM members WHERE roomName = :roomName ORDER BY turnOrder ASC, id ASC")
     fun getMembersByRoomFlow(roomName: String): Flow<List<Member>>
 
-    @Query("SELECT * FROM members WHERE roomName = :roomName ORDER BY id ASC")
+    @Query("SELECT * FROM members WHERE roomName = :roomName ORDER BY turnOrder ASC, id ASC")
     suspend fun getMembersByRoom(roomName: String): List<Member>
 
-    @Query("SELECT * FROM members ORDER BY id ASC")
+    @Query("SELECT * FROM members ORDER BY roomName ASC, turnOrder ASC, id ASC")
     suspend fun getAllMembers(): List<Member>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -59,11 +59,14 @@ interface TrashStateDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrashState(trashState: TrashState)
+
+    @Query("DELETE FROM trash_state WHERE roomName = :roomName")
+    suspend fun deleteTrashState(roomName: String)
 }
 
 @Dao
 interface HistoryLogDao {
-    @Query("SELECT * FROM history_logs WHERE roomName = :roomName ORDER BY timestamp DESC LIMIT 50")
+    @Query("SELECT * FROM history_logs WHERE roomName = :roomName AND message NOT LIKE '%đồng bộ%' AND message NOT LIKE '%Đồng bộ%' ORDER BY timestamp DESC LIMIT 50")
     fun getRecentLogsFlow(roomName: String): Flow<List<HistoryLog>>
 
     @Query("SELECT COUNT(*) FROM history_logs WHERE roomName = :roomName")

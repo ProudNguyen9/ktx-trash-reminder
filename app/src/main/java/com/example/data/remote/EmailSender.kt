@@ -30,35 +30,6 @@ class EmailSender {
             return@withContext false
         }
 
-        var confirmButtonHtml = ""
-        if (webConfirmUrl.isNotBlank() && firebaseDbUrl.isNotBlank()) {
-            try {
-                val dbUrlEncoded = java.net.URLEncoder.encode(firebaseDbUrl, "UTF-8")
-                val apiKeyEncoded = java.net.URLEncoder.encode(firebaseApiKey, "UTF-8")
-                
-                // Normalize webConfirmUrl to include web-confirm/index.html if not specified
-                val finalWebConfirmUrl = when {
-                    webConfirmUrl.contains("/web-confirm/") -> webConfirmUrl
-                    webConfirmUrl.endsWith("/") -> "${webConfirmUrl}web-confirm/index.html"
-                    else -> "$webConfirmUrl/web-confirm/index.html"
-                }
-                val confirmUrl = "$finalWebConfirmUrl?dbUrl=$dbUrlEncoded&apiKey=$apiKeyEncoded"
-                
-                confirmButtonHtml = """
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="$confirmUrl" style="background-color: #6750A4; color: #FFFFFF; padding: 16px 32px; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(103, 80, 164, 0.3);">
-                            ĐÃ ĐỒ RÁC (XÁC NHẬN NHANH) ✅
-                        </a>
-                        <p style="margin-top: 10px; font-size: 11px; color: #6b7280;">
-                            *Dành cho thành viên không có cài đặt ứng dụng. Hãy nhấn sau khi đã đổ rác xong.
-                        </p>
-                    </div>
-                """.trimIndent()
-            } catch (e: Exception) {
-                Log.e("EmailSender", "Failed to encode DB parameters for confirm link", e)
-            }
-        }
-
         val subject = "⚠️ [Dorm Trash Guard] THÙNG RÁC ĐẦY RỒI! Đến lượt bạn đổ rác!"
         val htmlContent = """
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px; background-color: #FEF7FF; color: #1D1B20;">
@@ -77,11 +48,9 @@ class EmailSender {
                     </p>
                 </div>
                 
-                <p>Bạn hãy giúp phòng xách túi rác bỏ đi nhé! Sau khi hoàn thành, bạn có thể nhấn nút <strong>Xóa rác nhanh</strong> bên dưới ngay trong email này để tự động cập nhật và chuyển lượt đổ cho người kế tiếp mà không cần cài app.</p>
+                <p>Bạn hãy giúp phòng xách túi rác bỏ đi nhé! Sau khi hoàn thành, hãy mở ứng dụng Dorm Trash Guard và nhấn <strong>Đã Đổ Rác</strong> để cập nhật lượt cho người kế tiếp.</p>
                 
-                $confirmButtonHtml
-                
-                <p style="font-size: 13px; color: #49454F; line-height: 1.5;">Nếu có ứng dụng Android cài trên điện thoại, bạn cũng có thể mở app lên để theo dõi lịch sử sinh hoạt của phòng hoặc cập nhật lại danh sách email thành viên.</p>
+                <p style="font-size: 13px; color: #49454F; line-height: 1.5;">Email này chỉ dùng để nhắc nhở người đang tới lượt. Việc xác nhận đã đổ rác được thực hiện trong ứng dụng Android để tránh bấm nhầm hoặc xác nhận sai người.</p>
                 
                 <p style="margin-top: 40px; font-size: 11px; color: #79747E; text-align: center; border-top: 1px solid #CAC4D0; padding-top: 20px; line-height: 1.4;">
                     Hệ thống email tự động vận hành bởi ứng dụng <strong>Dorm Trash Guard</strong>.<br/>

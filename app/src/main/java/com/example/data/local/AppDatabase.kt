@@ -11,7 +11,7 @@ import com.example.data.model.TrashState
 
 @Database(
     entities = [DormRoom::class, Member::class, TrashState::class, HistoryLog::class],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

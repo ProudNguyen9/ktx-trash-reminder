@@ -85,7 +85,12 @@ fun DashboardTab(
     onConfirmDumpClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val currentTurnIndex = trashState?.currentTurnIndex ?: 0
+    val rawTurnIndex = trashState?.currentTurnIndex ?: 0
+    val currentTurnIndex = if (members.isNotEmpty()) {
+        ((rawTurnIndex % members.size) + members.size) % members.size
+    } else {
+        0
+    }
     val activeMember = members.getOrNull(currentTurnIndex)
 
     LazyColumn(
@@ -316,33 +321,6 @@ fun DashboardTab(
                             overflow = TextOverflow.Ellipsis
                         )
 
-                        if (isFull && activeMember != null) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            // Prefilled email client notification as fallback
-                            Button(
-                                onClick = {
-                                    launchEmailIntent(
-                                        context = context,
-                                        email = activeMember.email,
-                                        name = activeMember.name,
-                                        id = activeMember.id,
-                                        reporterName = trashState.reportedByName.ifBlank { "Bạn cùng phòng" }
-                                    )
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .wrapContentWidth()
-                                    .testTag("send_email_fallback_button")
-                            ) {
-                                Icon(Icons.Default.Email, contentDescription = "Mail Icon")
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Gửi mail nhắc nhở gấp", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
                     }
                 }
             }
@@ -358,10 +336,8 @@ fun DashboardTab(
                 Button(
                     onClick = onReportFullClick,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (trashState?.isTrashFull == true) MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
-                        else MaterialTheme.colorScheme.error
+                        containerColor = MaterialTheme.colorScheme.error
                     ),
-                    enabled = trashState?.isTrashFull != true,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .weight(1f)
