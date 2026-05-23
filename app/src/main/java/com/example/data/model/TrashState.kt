@@ -16,6 +16,8 @@ data class TrashState(
     val resendApiKey: String = "",
     val webConfirmUrl: String = "",
     val lastSyncedAt: Long = 0L,
+    val confirmToken: String = "",
+    val confirmEmail: String = "",
     val adminEmail: String = "nguyenhaohuu9@gmail.com",
     val adminPassword: String = "admin999"
 )

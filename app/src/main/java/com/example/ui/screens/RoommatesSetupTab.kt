@@ -2,21 +2,55 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,123 +58,106 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Member
 
-// ---------------------- ROOMMATES SETUP TAB ----------------------
 @Composable
 fun RoommatesSetupTab(
     roomName: String,
     members: List<Member>,
+    canEdit: Boolean = true,
     onSaveMembers: (List<Member>) -> Unit
 ) {
-    // Hold local changes until saved
-    val editedMembers = remember(members) {
-        members.toMutableStateList()
-    }
+    val editedMembers = remember(members) { members.toMutableStateList() }
     var hasChanges by remember { mutableStateOf(false) }
+
+    fun moveMember(fromIndex: Int, toIndex: Int) {
+        if (fromIndex !in editedMembers.indices || toIndex !in editedMembers.indices || fromIndex == toIndex) return
+        val movingMember = editedMembers.removeAt(fromIndex)
+        editedMembers.add(toIndex, movingMember)
+        hasChanges = true
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .testTag("roommates_lazy_column"),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                )
-            ) {
+            ModernCard(modifier = Modifier.fillMaxWidth(), radius = 28.dp) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = "Info",
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        "Cài đặt danh tính, email và trạng thái vắng mặt. Thành viên vắng mặt sẽ được tự động bỏ qua khi báo rác đầy và chuyển lượt.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    ) {
+                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                            Icon(if (canEdit) Icons.Default.Person else Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Thành viên phòng", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            if (canEdit) "Sắp xếp lượt, email, mật khẩu và trạng thái vắng."
+                            else "Chỉ xem danh sách thành viên, không sửa hoặc xóa.",
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2
+                        )
+                    }
+                    Surface(
+                        modifier = Modifier.widthIn(min = 58.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    ) {
+                        Text("${editedMembers.size} người", modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }
 
-        itemsIndexed(
-            items = editedMembers,
-            key = { _, member -> member.id }
-        ) { index, member ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primaryContainer)
-                            ) {
-                                Text(
-                                    "T${member.id}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    member.name.ifBlank { "Thành viên thứ ${member.id}" },
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                if (member.isAbsent) {
-                                    Text(
-                                        "Đang vắng mặt",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+        itemsIndexed(items = editedMembers, key = { _, member -> member.id }) { index, member ->
+            ModernCard(modifier = Modifier.fillMaxWidth(), radius = 26.dp) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)))
+                        ) {
+                            Text("${index + 1}", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(member.name.ifBlank { "Thành viên ${member.id}" }, fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Vị trí lượt ${index + 1}/${editedMembers.size}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            if (member.isAbsent) {
+                                Text("Đang vắng mặt", fontSize = 11.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                             }
                         }
-                        if (editedMembers.size > 1) {
-                            IconButton(
-                                onClick = {
-                                    editedMembers.remove(member)
-                                    hasChanges = true
-                                },
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .testTag("delete_member_${member.id}")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Xóa thành viên",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                        if (canEdit && editedMembers.size > 1) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { moveMember(index, index - 1) }, enabled = index > 0, modifier = Modifier.size(30.dp).testTag("move_member_up_${member.id}")) {
+                                    Icon(Icons.Default.KeyboardArrowUp, null, modifier = Modifier.size(21.dp))
+                                }
+                                IconButton(onClick = { moveMember(index, index + 1) }, enabled = index < editedMembers.lastIndex, modifier = Modifier.size(30.dp).testTag("move_member_down_${member.id}")) {
+                                    Icon(Icons.Default.KeyboardArrowDown, null, modifier = Modifier.size(21.dp))
+                                }
+                                IconButton(onClick = { editedMembers.remove(member); hasChanges = true }, modifier = Modifier.size(30.dp).testTag("delete_member_${member.id}")) {
+                                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
+                    MemberInput(
                         value = member.name,
                         onValueChange = { newVal ->
                             val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
@@ -149,20 +166,12 @@ fun RoommatesSetupTab(
                                 hasChanges = true
                             }
                         },
-                        label = { Text("Họ và Tên", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("member_name_input_${member.id}"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                        )
+                        label = "Họ và tên",
+                        icon = { Icon(Icons.Default.Person, null) },
+                        enabled = canEdit,
+                        modifier = Modifier.testTag("member_name_input_${member.id}")
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
+                    MemberInput(
                         value = member.email,
                         onValueChange = { newVal ->
                             val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
@@ -171,54 +180,30 @@ fun RoommatesSetupTab(
                                 hasChanges = true
                             }
                         },
-                        label = { Text("Địa chỉ Email", fontSize = 12.sp) },
-                        singleLine = true,
+                        label = "Địa chỉ email",
+                        icon = { Icon(Icons.Default.Email, null) },
+                        enabled = canEdit,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("member_email_input_${member.id}"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                        )
+                        modifier = Modifier.testTag("member_email_input_${member.id}")
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Trạng thái",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                if (member.isAbsent) "Vắng mặt - bỏ qua lượt" else "Có mặt - nhận lượt bình thường",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("Trạng thái", fontSize = 12.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                            Text(if (member.isAbsent) "Vắng mặt - bỏ qua lượt" else "Có mặt - nhận lượt bình thường", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(
                             checked = member.isAbsent,
-                            onCheckedChange = { checked ->
+                            onCheckedChange = if (canEdit) {{ checked ->
                                 val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
                                 if (targetIndex != -1) {
                                     editedMembers[targetIndex] = member.copy(isAbsent = checked)
                                     hasChanges = true
                                 }
-                            },
+                            }} else null,
                             modifier = Modifier.testTag("member_absent_switch_${member.id}")
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
+                    MemberInput(
                         value = member.password,
                         onValueChange = { newVal ->
                             val targetIndex = editedMembers.indexOfFirst { it.id == member.id }
@@ -227,68 +212,78 @@ fun RoommatesSetupTab(
                                 hasChanges = true
                             }
                         },
-                        label = { Text("Mật khẩu riêng (đăng nhập user)", fontSize = 12.sp) },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("member_password_input_${member.id}"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                        )
+                        label = "Mật khẩu riêng",
+                        icon = { Icon(Icons.Default.Lock, null) },
+                        enabled = canEdit,
+                        modifier = Modifier.testTag("member_password_input_${member.id}")
                     )
                 }
             }
         }
 
-        item {
-            OutlinedButton(
-                onClick = {
-                    val nextId = (editedMembers.map { it.id }.maxOrNull() ?: 0) + 1
-                    editedMembers.add(
-                        Member(
-                            roomName = roomName,
-                            id = nextId,
-                            name = "Thành viên $nextId",
-                            email = "user$nextId@example.com",
-                            password = "user123"
-                        )
-                    )
-                    hasChanges = true
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("add_member_button"),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, "Thêm")
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Thêm thành viên mới", fontWeight = FontWeight.Bold)
+        if (canEdit) {
+            item {
+                OutlinedButton(
+                    onClick = {
+                        val nextId = (editedMembers.map { it.id }.maxOrNull() ?: 0) + 1
+                        editedMembers.add(Member(roomName = roomName, id = nextId, name = "Thành viên $nextId", email = "user$nextId@example.com", password = "user123", turnOrder = editedMembers.size))
+                        hasChanges = true
+                    },
+                    modifier = Modifier.fillMaxWidth().height(54.dp).testTag("add_member_button"),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Icon(Icons.Default.Add, null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Thêm thành viên mới", fontWeight = FontWeight.Black)
+                }
             }
-        }
-
-        item {
-            Button(
-                onClick = {
-                    onSaveMembers(editedMembers.toList())
-                    hasChanges = false
-                },
-                enabled = hasChanges,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp)
-                    .height(50.dp)
-                    .testTag("save_members_button"),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(Icons.Default.Check, "Lưu")
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Lưu danh sách thành viên", fontWeight = FontWeight.Bold)
+            item {
+                Button(
+                    onClick = {
+                        onSaveMembers(editedMembers.mapIndexed { order, member -> member.copy(turnOrder = order) })
+                        hasChanges = false
+                    },
+                    enabled = hasChanges,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).height(54.dp).testTag("save_members_button"),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(Icons.Default.Check, null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Lưu danh sách thành viên", fontWeight = FontWeight.Black)
+                }
             }
         }
     }
+}
+
+@Composable
+private fun MemberInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    icon: @Composable () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 12.sp) },
+        leadingIcon = icon,
+        enabled = enabled,
+        singleLine = true,
+        keyboardOptions = keyboardOptions,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    )
 }

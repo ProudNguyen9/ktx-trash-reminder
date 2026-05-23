@@ -4,26 +4,55 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.EaseInOutSine
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -36,9 +65,9 @@ import com.example.data.model.HistoryLog
 import com.example.data.model.Member
 import com.example.data.model.TrashState
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
-// Helper to launch implicit email notification
 fun launchEmailIntent(
     context: Context,
     email: String,
@@ -49,13 +78,11 @@ fun launchEmailIntent(
     val subject = "⚠️ [Dorm Trash Guard] THÙNG RÁC ĐẦY RỒI! Đến lượt bạn $name đổ rác!"
     val body = """
         Chào $name,
-        
+
         Bạn cùng phòng $reporterName vừa bấm thông báo thùng rác trong phòng kí túc xá của chúng ta đã đầy rồi!
-        
-        Hiện tại đang đến lượt của bạn (Thứ tự quy định #${id} trong vòng lặp) rút bao rác mang đi đổ.
-        
-        Hãy thực hiện nhiệm vụ đổ rác và sau đó nhấn nút "Xác nhận đã đổ" trên ứng dụng Dorm Trash Guard nhé!
-        
+
+        Hiện tại đang đến lượt của bạn (Thứ tự quy định #${id}) rút bao rác mang đi đổ.
+
         Thân ái,
         Dorm Trash Guard App • Đội phòng KTX
     """.trimIndent()
@@ -71,11 +98,10 @@ fun launchEmailIntent(
     try {
         context.startActivity(intent)
     } catch (e: Exception) {
-        Toast.makeText(context, "Không thể mở ứng dụng gửi mail! Đã sao chép email.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Không thể mở ứng dụng gửi mail!", Toast.LENGTH_SHORT).show()
     }
 }
 
-// ---------------------- DASHBOARD TAB ----------------------
 @Composable
 fun DashboardTab(
     members: List<Member>,
@@ -84,14 +110,10 @@ fun DashboardTab(
     onReportFullClick: () -> Unit,
     onConfirmDumpClick: () -> Unit
 ) {
-    val context = LocalContext.current
     val rawTurnIndex = trashState?.currentTurnIndex ?: 0
-    val currentTurnIndex = if (members.isNotEmpty()) {
-        ((rawTurnIndex % members.size) + members.size) % members.size
-    } else {
-        0
-    }
+    val currentTurnIndex = if (members.isNotEmpty()) ((rawTurnIndex % members.size) + members.size) % members.size else 0
     val activeMember = members.getOrNull(currentTurnIndex)
+    val isFull = trashState?.isTrashFull == true
 
     LazyColumn(
         modifier = Modifier
@@ -100,91 +122,85 @@ fun DashboardTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Section 1: Visual Turn Tracker (Circle roommates)
         item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "VÒNG LẶP ĐỔ RÁC PHÒNG",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Horizontal circular indicator of roommates
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+            ModernCard(modifier = Modifier.fillMaxWidth(), radius = 28.dp) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Vòng lặp đổ rác",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Theo dõi lượt của từng thành viên trong phòng",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                "${members.size} người",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val numMembers = members.size
-                        for (i in 0 until numMembers) {
-                            val member = members.getOrNull(i)
-                            val isActive = i == currentTurnIndex
-                            val isFull = trashState?.isTrashFull == true
-
+                        itemsIndexed(members, key = { _, member -> member.id }) { index, member ->
+                            val selected = index == currentTurnIndex
                             Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.width(58.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(if (selected) 42.dp else 34.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            if (isActive) {
-                                                if (isFull) MaterialTheme.colorScheme.errorContainer
-                                                else MaterialTheme.colorScheme.primaryContainer
+                                            if (selected) {
+                                                Brush.linearGradient(
+                                                    listOf(
+                                                        if (isFull) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                                        MaterialTheme.colorScheme.secondary
+                                                    )
+                                                )
                                             } else {
-                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                Brush.linearGradient(
+                                                    listOf(
+                                                        MaterialTheme.colorScheme.surfaceVariant,
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                                                    )
+                                                )
                                             }
-                                        )
-                                        .border(
-                                            width = if (isActive) 2.dp else 1.dp,
-                                            color = if (isActive) {
-                                                if (isFull) MaterialTheme.colorScheme.error
-                                                else MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                            },
-                                            shape = CircleShape
                                         )
                                 ) {
                                     Text(
-                                        text = (i + 1).toString(),
-                                        fontSize = 14.sp,
-                                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Normal,
-                                        color = if (isActive) {
-                                            if (isFull) MaterialTheme.colorScheme.onErrorContainer
-                                            else MaterialTheme.colorScheme.onPrimaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        }
+                                        text = "${index + 1}",
+                                        fontWeight = FontWeight.Black,
+                                        color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 13.sp
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = member?.name?.split(" ")?.lastOrNull() ?: "T${member?.id ?: (i + 1)}",
-                                    fontSize = 11.sp,
+                                    text = member.name.split(" ").lastOrNull().orEmpty().ifBlank { "T${member.id}" },
+                                    fontSize = 10.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -193,299 +209,248 @@ fun DashboardTab(
             }
         }
 
-        // Section 2: Active turn warning and Details card
         item {
-            val isFull = trashState?.isTrashFull == true
-            val colorBrush = if (isFull) {
-                Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f),
-                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
-                    )
-                )
-            } else {
-                Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                    )
-                )
-            }
-
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = if (isFull) MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(colorBrush)
-                        .padding(24.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isFull) MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                )
-                        ) {
-                            // Pulsing trash/alert action
-                            val infiniteTransition = rememberInfiniteTransition(label = "pulsing")
-                            val scale by infiniteTransition.animateFloat(
-                                initialValue = 0.95f,
-                                targetValue = 1.05f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(1200, easing = EaseInOutSine),
-                                    repeatMode = RepeatMode.Reverse
-                                ),
-                                label = "scale"
-                            )
-
-                            Icon(
-                                imageVector = if (isFull) Icons.Default.Warning else Icons.Default.CheckCircle,
-                                contentDescription = "Status Icon",
-                                tint = if (isFull) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .graphicsLayer(
-                                        scaleX = scale,
-                                        scaleY = scale
-                                    )
-                                    .padding(2.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = if (isFull) "🚨 THÙNG RÁC ĐÃ ĐẦY!" else "✨ THÙNG RÁC SẠCH SẼ",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 20.sp,
-                            color = if (isFull) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        )
-
-                        if (isFull && trashState != null) {
-                            val timeText = if (trashState.reportedAt > 0) {
-                                val sdf = SimpleDateFormat("HH:mm - dd/MM", Locale.getDefault())
-                                sdf.format(Date(trashState.reportedAt))
-                            } else ""
-                            
-                            Text(
-                                text = "Báo đầy bởi: ${trashState.reportedByName} ($timeText)",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
-                                modifier = Modifier.padding(top = 4.dp),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 16.dp),
-                            color = if (isFull) MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
-                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                        )
-
-                        Text(
-                            text = "Lượt đổ rác hiện tại:",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Text(
-                            text = activeMember?.name ?: "Chưa rõ thành viên",
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-
-                        Text(
-                            text = "Email: ${activeMember?.email ?: "member@example.com"}",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-
-                    }
-                }
-            }
+            StatusHeroCard(isFull = isFull, trashState = trashState, activeMember = activeMember)
         }
 
-        // Section 3: Dual Action Buttons
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Garbage is full button
                 Button(
                     onClick = onReportFullClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    ),
-                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .height(54.dp)
+                        .height(58.dp)
                         .testTag("btn_garbage_full")
                 ) {
-                    Icon(Icons.Default.Warning, contentDescription = "Full warning")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Báo Rác Đầy 🚨", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("BÁO RÁC\nĐẦY", fontSize = 11.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, maxLines = 2)
                 }
-
-                // Confirm Dump button
                 Button(
                     onClick = onConfirmDumpClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .height(54.dp)
+                        .height(58.dp)
                         .testTag("btn_garbage_dumped")
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = "Success check")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Đã Đổ Rác ✅", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("ĐÃ ĐỔ\nRÁC", fontSize = 11.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, maxLines = 2)
                 }
             }
         }
 
-        // Section 4: Logs heading
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "Clock",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "LỊCH SỬ HOẠT ĐỘNG HOÀT ĐỘNG",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    letterSpacing = 0.5.sp
-                )
-            }
+            SectionTitle(title = "Lịch sử hoạt động", icon = { Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp)) })
         }
 
-        // Section 5: Log Items
         if (logs.isEmpty()) {
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
-                ) {
-                    Box(
-                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Chưa có hoạt động nào được ghi lại.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
+                ModernCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
+                    Text(
+                        "Chưa có hoạt động nào được ghi lại.",
+                        modifier = Modifier.padding(22.dp).fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
                 }
             }
         } else {
-            items(logs) { log ->
-                LogItem(log)
+            items(logs) { log -> LogItem(log) }
+        }
+    }
+}
+
+@Composable
+private fun StatusHeroCard(isFull: Boolean, trashState: TrashState?, activeMember: Member?) {
+    val accentColor = if (isFull) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val backgroundBrush = if (isFull) {
+        Brush.verticalGradient(
+            listOf(
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.95f),
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.32f),
+                MaterialTheme.colorScheme.surface
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            listOf(
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.68f),
+                MaterialTheme.colorScheme.surface
+            )
+        )
+    }
+    val timeText = if (trashState != null && trashState.reportedAt > 0) {
+        SimpleDateFormat("HH:mm - dd/MM", Locale.getDefault()).format(Date(trashState.reportedAt))
+    } else ""
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = if (isFull) 0.32f else 0.18f),
+                shape = RoundedCornerShape(28.dp)
+            ),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(backgroundBrush)
+                .padding(horizontal = 18.dp, vertical = 16.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(54.dp),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.14f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isFull) Icons.Default.Warning else Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isFull) "Thùng rác đã đầy" else "Thùng rác sạch sẽ",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = accentColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = if (isFull && trashState != null) {
+                                "Báo bởi ${trashState.reportedByName} • $timeText"
+                            } else {
+                                "Không có cảnh báo trong phòng"
+                            },
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 14.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.52f)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Lượt đổ rác hiện tại", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = activeMember?.name ?: "Chưa có thành viên",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = activeMember?.email ?: "member@example.com",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = accentColor.copy(alpha = if (isFull) 0.14f else 0.10f),
+                        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.16f))
+                    ) {
+                        Text(
+                            text = if (isFull) "Cần xử lý" else "Ổn định",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = accentColor
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-// Single Timeline Log item component
+@Composable
+private fun SectionTitle(title: String, icon: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+            Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { icon() }
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(title.uppercase(), fontWeight = FontWeight.Black, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.5.sp)
+    }
+}
+
 @Composable
 fun LogItem(log: HistoryLog) {
-    val sdf = SimpleDateFormat("HH:mm - dd/MM", Locale.getDefault())
-    val formattedTime = sdf.format(Date(log.timestamp))
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon according to log type
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(
-                        when (log.type) {
-                            "FULL" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
-                            "DUMPED" -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                            "CONFIG" -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-                            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                        }
-                    )
+    val formattedTime = SimpleDateFormat("HH:mm - dd/MM", Locale.getDefault()).format(Date(log.timestamp))
+    ModernCard(modifier = Modifier.fillMaxWidth(), radius = 20.dp) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                shape = CircleShape,
+                color = when (log.type) {
+                    "FULL" -> MaterialTheme.colorScheme.errorContainer
+                    "DUMPED" -> MaterialTheme.colorScheme.tertiaryContainer
+                    "CONFIG" -> MaterialTheme.colorScheme.secondaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
             ) {
-                Icon(
-                    imageVector = when (log.type) {
-                        "FULL" -> Icons.Default.Warning
-                        "DUMPED" -> Icons.Default.Check
-                        "CONFIG" -> Icons.Default.Settings
-                        else -> Icons.Default.Home
-                    },
-                    contentDescription = log.type,
-                    tint = when (log.type) {
-                        "FULL" -> MaterialTheme.colorScheme.error
-                        "DUMPED" -> MaterialTheme.colorScheme.primary
-                        "CONFIG" -> MaterialTheme.colorScheme.secondary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.size(16.dp)
-                )
+                Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = when (log.type) {
+                            "FULL" -> Icons.Default.Warning
+                            "DUMPED" -> Icons.Default.Check
+                            "CONFIG" -> Icons.Default.Settings
+                            else -> Icons.Default.Delete
+                        },
+                        contentDescription = null,
+                        tint = when (log.type) {
+                            "FULL" -> MaterialTheme.colorScheme.error
+                            "DUMPED" -> MaterialTheme.colorScheme.tertiary
+                            "CONFIG" -> MaterialTheme.colorScheme.secondary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
             }
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = log.message,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = formattedTime,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
+                Text(log.message, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Text(formattedTime, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

@@ -1,0 +1,20 @@
+{
+    "hosting": {
+        "public": "web-confirm",
+        "ignore": [
+            "firebase.json",
+            "**/.*",
+            "**/node_modules/**"
+        ],
+        "rewrites": [
+            {
+                "source": "/confirm-trash",
+                "destination": "/index.html"
+            },
+            {
+                "source": "**",
+                "destination": "/index.html"
+            }
+        ]
+    }
+}

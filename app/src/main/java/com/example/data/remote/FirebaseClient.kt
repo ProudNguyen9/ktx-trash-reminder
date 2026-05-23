@@ -23,6 +23,8 @@ class FirebaseClient {
         val isTrashFull: Boolean,
         val reportedByName: String,
         val reportedAt: Long,
+        val confirmToken: String = "",
+        val confirmEmail: String = "",
         val members: List<FirebaseMember>
     )
 
@@ -62,6 +64,8 @@ class FirebaseClient {
             isTrashFull = state.isTrashFull,
             reportedByName = state.reportedByName,
             reportedAt = state.reportedAt,
+            confirmToken = state.confirmToken,
+            confirmEmail = state.confirmEmail,
             members = members.map {
                 FirebaseMember(
                     id = it.id,

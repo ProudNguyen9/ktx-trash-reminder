@@ -1,17 +1,59 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +64,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LoginMatch
@@ -30,519 +73,487 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     onRegisterRoom: (String, String, String, String, (Boolean) -> Unit) -> Unit,
-    onLoginSuccess: (String, String, String) -> Unit, // (email, role, roomName)
+    onLoginSuccess: (String, String, String) -> Unit,
     checkCredentials: suspend (String, String) -> List<LoginMatch>
 ) {
     val coroutineScope = rememberCoroutineScope()
-
     var isRegisterMode by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var matchesList by remember { mutableStateOf<List<LoginMatch>?>(null) }
 
-    // Login Form State
     var loginEmail by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
-
-    // Register Form State
     var regRoomName by remember { mutableStateOf("") }
     var regAdminName by remember { mutableStateOf("") }
     var regAdminEmail by remember { mutableStateOf("") }
     var regAdminPassword by remember { mutableStateOf("") }
 
+    ModernAppBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            ModernCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 430.dp),
+                radius = 32.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    LoginHeader(isRegisterMode = isRegisterMode)
+                    Spacer(modifier = Modifier.height(22.dp))
+
+                    AnimatedContent(
+                        targetState = matchesList != null,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        label = "login_content"
+                    ) { choosingRoom ->
+                        when {
+                            choosingRoom -> RoomPickerContent(
+                                matches = matchesList.orEmpty(),
+                                email = loginEmail,
+                                onPick = { match -> onLoginSuccess(loginEmail.trim().lowercase(), match.role, match.roomName) },
+                                onBack = { matchesList = null }
+                            )
+
+                            !isRegisterMode -> LoginFormContent(
+                                email = loginEmail,
+                                password = loginPassword,
+                                passwordVisible = passwordVisible,
+                                errorMessage = errorMessage,
+                                onEmailChange = {
+                                    loginEmail = it
+                                    errorMessage = null
+                                },
+                                onPasswordChange = {
+                                    loginPassword = it
+                                    errorMessage = null
+                                },
+                                onTogglePassword = { passwordVisible = !passwordVisible },
+                                onSubmit = {
+                                    val emailNorm = loginEmail.trim().lowercase()
+                                    val passNorm = loginPassword.trim()
+                                    when {
+                                        emailNorm.isEmpty() -> errorMessage = "Vui lòng nhập email hoặc tài khoản!"
+                                        passNorm.isEmpty() -> errorMessage = "Vui lòng nhập mật khẩu!"
+                                        else -> coroutineScope.launch {
+                                            val matches = checkCredentials(emailNorm, passNorm)
+                                            when {
+                                                matches.isEmpty() -> errorMessage = "Email hoặc mật khẩu không chính xác!"
+                                                matches.size == 1 -> {
+                                                    val match = matches.first()
+                                                    onLoginSuccess(emailNorm, match.role, match.roomName)
+                                                }
+                                                else -> matchesList = matches
+                                            }
+                                        }
+                                    }
+                                },
+                                onGoRegister = {
+                                    isRegisterMode = true
+                                    errorMessage = null
+                                }
+                            )
+
+                            else -> RegisterFormContent(
+                                roomName = regRoomName,
+                                adminName = regAdminName,
+                                adminEmail = regAdminEmail,
+                                adminPassword = regAdminPassword,
+                                passwordVisible = passwordVisible,
+                                errorMessage = errorMessage,
+                                onRoomNameChange = {
+                                    regRoomName = it
+                                    errorMessage = null
+                                },
+                                onAdminNameChange = {
+                                    regAdminName = it
+                                    errorMessage = null
+                                },
+                                onAdminEmailChange = {
+                                    regAdminEmail = it
+                                    errorMessage = null
+                                },
+                                onAdminPasswordChange = {
+                                    regAdminPassword = it
+                                    errorMessage = null
+                                },
+                                onTogglePassword = { passwordVisible = !passwordVisible },
+                                onSubmit = {
+                                    val rName = regRoomName.trim()
+                                    val aName = regAdminName.trim()
+                                    val aEmail = regAdminEmail.trim()
+                                    val aPass = regAdminPassword.trim()
+                                    when {
+                                        rName.isEmpty() -> errorMessage = "Vui lòng nhập tên phòng!"
+                                        aName.isEmpty() -> errorMessage = "Vui lòng nhập họ tên Admin!"
+                                        aEmail.isEmpty() -> errorMessage = "Vui lòng nhập Email Admin!"
+                                        aPass.length < 6 -> errorMessage = "Mật khẩu Admin phải tối thiểu 6 ký tự!"
+                                        else -> onRegisterRoom(rName, aName, aEmail, aPass) { success ->
+                                            if (success) {
+                                                onLoginSuccess(aEmail.lowercase(), "admin", rName)
+                                            } else {
+                                                errorMessage = "Đăng ký lỗi! Phòng này đã tồn tại hoặc tên phòng trống."
+                                            }
+                                        }
+                                    }
+                                },
+                                onBackLogin = {
+                                    isRegisterMode = false
+                                    errorMessage = null
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "© 2026 Dorm Trash Guard • KTX xanh, sạch, gọn",
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoginHeader(isRegisterMode: Boolean) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .size(82.dp)
+            .clip(CircleShape)
             .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                    )
+                Brush.linearGradient(
+                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
                 )
             ),
         contentAlignment = Alignment.Center
     ) {
-        Card(
+        Icon(
+            imageVector = if (isRegisterMode) Icons.Default.Add else Icons.Default.Delete,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(38.dp)
+        )
+    }
+    Spacer(modifier = Modifier.height(14.dp))
+    Text(
+        text = "Dorm Trash Guard",
+        style = MaterialTheme.typography.headlineSmall,
+        color = MaterialTheme.colorScheme.primary,
+        textAlign = TextAlign.Center
+    )
+    Text(
+        text = if (isRegisterMode) "Tạo phòng KTX và quản lý đội nhóm" else "Hệ thống quản lý rác KTX phòng",
+        fontSize = 13.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center
+    )
+}
+
+@Composable
+private fun LoginFormContent(
+    email: String,
+    password: String,
+    passwordVisible: Boolean,
+    errorMessage: String?,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onTogglePassword: () -> Unit,
+    onSubmit: () -> Unit,
+    onGoRegister: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ModernInput(
+            value = email,
+            onValueChange = onEmailChange,
+            label = "Email hoặc tài khoản",
+            placeholder = "example@gmail.com",
+            leadingIcon = { Icon(Icons.Default.Email, null) },
+            modifier = Modifier.testTag("login_email_input")
+        )
+        ModernInput(
+            value = password,
+            onValueChange = onPasswordChange,
+            label = "Mật khẩu",
+            placeholder = "••••••••",
+            leadingIcon = { Icon(Icons.Default.Lock, null) },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                TextButton(onClick = onTogglePassword) {
+                    Text(if (passwordVisible) "Ẩn" else "Hiện", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            modifier = Modifier.testTag("login_password_input")
+        )
+        ErrorText(errorMessage)
+        Button(
+            onClick = onSubmit,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
-                .widthIn(max = 420.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(28.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                .height(54.dp)
+                .testTag("login_submit_button"),
+            shape = RoundedCornerShape(18.dp),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Header emblem
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isRegisterMode) Icons.Default.AddCircle else Icons.Default.Lock,
-                        contentDescription = "Lock Icon",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(36.dp)
-                    )
+            Text("ĐĂNG NHẬP", fontWeight = FontWeight.Black)
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(Icons.Default.ArrowForward, null, modifier = Modifier.size(18.dp))
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Chưa có phòng?", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = "Đăng ký ngay",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable(onClick = onGoRegister)
+            )
+        }
+        LoginTipCard()
+    }
+}
+
+@Composable
+private fun RegisterFormContent(
+    roomName: String,
+    adminName: String,
+    adminEmail: String,
+    adminPassword: String,
+    passwordVisible: Boolean,
+    errorMessage: String?,
+    onRoomNameChange: (String) -> Unit,
+    onAdminNameChange: (String) -> Unit,
+    onAdminEmailChange: (String) -> Unit,
+    onAdminPasswordChange: (String) -> Unit,
+    onTogglePassword: () -> Unit,
+    onSubmit: () -> Unit,
+    onBackLogin: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+            modifier = Modifier
+                .size(68.dp)
+                .align(Alignment.CenterHorizontally),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            }
+        }
+        ModernInput(roomName, onRoomNameChange, "Tên phòng đăng ký", "Phòng D514", { Icon(Icons.Default.Home, null) }, Modifier.testTag("register_room_input"))
+        ModernInput(adminName, onAdminNameChange, "Họ tên Trưởng phòng / Admin", "Nguyễn Văn A", { Icon(Icons.Default.Person, null) }, Modifier.testTag("register_name_input"))
+        ModernInput(adminEmail, onAdminEmailChange, "Email Admin đăng ký", "admin@gmail.com", { Icon(Icons.Default.Email, null) }, Modifier.testTag("register_email_input"))
+        ModernInput(
+            value = adminPassword,
+            onValueChange = onAdminPasswordChange,
+            label = "Mật khẩu Admin",
+            placeholder = "Tối thiểu 6 ký tự",
+            leadingIcon = { Icon(Icons.Default.Lock, null) },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                TextButton(onClick = onTogglePassword) {
+                    Text(if (passwordVisible) "Ẩn" else "Hiện", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
+            },
+            modifier = Modifier.testTag("register_password_input")
+        )
+        ErrorText(errorMessage)
+        Button(
+            onClick = onSubmit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .testTag("register_submit_button"),
+            shape = RoundedCornerShape(18.dp),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+        ) {
+            Text("ĐĂNG KÝ PHÒNG & ADMIN", fontWeight = FontWeight.Black, fontSize = 12.sp, maxLines = 1)
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(Icons.Default.ArrowForward, null, modifier = Modifier.size(18.dp))
+        }
+        TextButton(onClick = onBackLogin, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Text("Quay lại màn hình đăng nhập", fontWeight = FontWeight.Bold)
+        }
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+            shape = RoundedCornerShape(22.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f))
+        ) {
+            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Dorm Trash Guard",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 24.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
+                    "Thông tin đăng ký được duyệt bởi ban quản lý KTX và đồng bộ theo phòng.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
+            }
+        }
+    }
+}
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Hệ thống Quản lý Rác KTX Phòng",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                if (matchesList != null) {
-                    // Room selection screen for multi-room matches
-                    Text(
-                        text = "Phát hiện nhiều phòng trùng khớp!",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Vui lòng chọn phòng bạn muốn đăng nhập dưới đây:",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        matchesList!!.forEach { match ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        onLoginSuccess(loginEmail.trim().lowercase(), match.role, match.roomName)
-                                    },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Home,
-                                        contentDescription = "Room Icon",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = match.roomName,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 15.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Admin: ${match.memberName}",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    SuggestionChip(
-                                        onClick = {},
-                                        label = {
-                                            Text(
-                                                text = if (match.role == "admin") "Admin 👑" else "Thành viên 🧑",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        },
-                                        colors = SuggestionChipDefaults.suggestionChipColors(
-                                            containerColor = if (match.role == "admin") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    TextButton(onClick = { matchesList = null }) {
-                        Text("Quay lại màn hình đăng nhập")
-                    }
-
-                } else if (!isRegisterMode) {
-                    // --- LOGIN PORTION ---
-                    // Email Input
-                    OutlinedTextField(
-                        value = loginEmail,
-                        onValueChange = {
-                            loginEmail = it
-                            errorMessage = null
-                        },
-                        label = { Text("Email hoặc tài khoản") },
-                        placeholder = { Text("example@gmail.com") },
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Email,
-                                contentDescription = "Email Icon",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("login_email_input"),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Password Input
-                    OutlinedTextField(
-                        value = loginPassword,
-                        onValueChange = {
-                            loginPassword = it
-                            errorMessage = null
-                        },
-                        label = { Text("Mật khẩu") },
-                        placeholder = { Text("••••••••") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Password Icon",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        trailingIcon = {
-                            TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Text(
-                                    text = if (passwordVisible) "Ẩn" else "Hiện",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("login_password_input"),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    if (errorMessage != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = errorMessage!!,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Login Button
-                    Button(
-                        onClick = {
-                            val emailNorm = loginEmail.trim().lowercase()
-                            val passNorm = loginPassword.trim()
-
-                            if (emailNorm.isEmpty()) {
-                                errorMessage = "Vui lòng nhập Email!"
-                                return@Button
-                            }
-                            if (passNorm.isEmpty()) {
-                                errorMessage = "Vui lòng nhập mật khẩu!"
-                                return@Button
-                            }
-
-                            coroutineScope.launch {
-                                val matches = checkCredentials(emailNorm, passNorm)
-                                if (matches.isEmpty()) {
-                                    errorMessage = "Email hoặc mật khẩu không chính xác!"
-                                } else if (matches.size == 1) {
-                                    // Exactly one matching room => enter directly
-                                    val match = matches.first()
-                                    onLoginSuccess(emailNorm, match.role, match.roomName)
-                                } else {
-                                    // Multiple rooms matched => show selector
-                                    matchesList = matches
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                            .testTag("login_submit_button"),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "ĐĂNG NHẬP 🔐",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
+@Composable
+private fun RoomPickerContent(
+    matches: List<LoginMatch>,
+    email: String,
+    onPick: (LoginMatch) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "Chọn phòng để tiếp tục",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            text = email.ifBlank { "Tài khoản của bạn" },
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Column(
+            modifier = Modifier.heightIn(max = 280.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            matches.forEach { match ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(match) },
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Chưa có phòng?",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Đăng ký ngay tại đây",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .clickable {
-                                    isRegisterMode = true
-                                    errorMessage = null
-                                }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Guide Info Box
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = "💡 Hướng dẫn đăng nhập phòng:",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "• Nhập email & mật khẩu đã đăng ký để vào phòng. Bạn sẽ được tự động nhận đúng quyền (Admin hoặc thành viên).",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "• Mặc định khởi tạo: Phòng 'Phòng D514' / Email 'nguyenhaohuu9@gmail.com' / Pass 'admin999'.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Home, null, tint = MaterialTheme.colorScheme.primary)
+                            }
                         }
-                    }
-
-                } else {
-                    // --- REGISTER ADMIN & ROOM PORTION ---
-                    OutlinedTextField(
-                        value = regRoomName,
-                        onValueChange = {
-                            regRoomName = it
-                            errorMessage = null
-                        },
-                        label = { Text("Tên phòng đăng ký") },
-                        placeholder = { Text("Ví dụ: Phòng D514") },
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Home,
-                                contentDescription = "Room Name Icon",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(match.roomName, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(match.memberName, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        SuggestionChip(
+                            onClick = { onPick(match) },
+                            label = { Text(if (match.role == "admin") "Admin" else "User", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = if (match.role == "admin") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+                                labelColor = if (match.role == "admin") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer
                             )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("register_room_input"),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = regAdminName,
-                        onValueChange = {
-                            regAdminName = it
-                            errorMessage = null
-                        },
-                        label = { Text("Họ tên Trưởng Phòng / Admin") },
-                        placeholder = { Text("Ví dụ: Nguyễn Hữu Hào") },
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Person Name Icon",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("register_name_input"),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = regAdminEmail,
-                        onValueChange = {
-                            regAdminEmail = it
-                            errorMessage = null
-                        },
-                        label = { Text("Email Admin đăng ký") },
-                        placeholder = { Text("example@gmail.com") },
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Email,
-                                contentDescription = "Email Admin Icon",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("register_email_input"),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = regAdminPassword,
-                        onValueChange = {
-                            regAdminPassword = it
-                            errorMessage = null
-                        },
-                        label = { Text("Mật khẩu Admin") },
-                        placeholder = { Text("Tối thiểu 6 ký tự") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Pass Icon",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("register_password_input"),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    if (errorMessage != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = errorMessage!!,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
                         )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        onClick = {
-                            val rName = regRoomName.trim()
-                            val aName = regAdminName.trim()
-                            val aEmail = regAdminEmail.trim()
-                            val aPass = regAdminPassword.trim()
-
-                            if (rName.isEmpty()) {
-                                errorMessage = "Vui lòng nhập tên phòng!"
-                                return@Button
-                            }
-                            if (aName.isEmpty()) {
-                                errorMessage = "Vui lòng nhập họ tên Admin!"
-                                return@Button
-                            }
-                            if (aEmail.isEmpty()) {
-                                errorMessage = "Vui lòng nhập Email Admin!"
-                                return@Button
-                            }
-                            if (aPass.length < 6) {
-                                errorMessage = "Mật khẩu Admin phải tối thiểu 6 ký tự!"
-                                return@Button
-                            }
-
-                            onRegisterRoom(rName, aName, aEmail, aPass) { success ->
-                                if (success) {
-                                    // Successfully registered & active room set. Auto log in.
-                                    onLoginSuccess(aEmail.lowercase(), "admin", rName)
-                                } else {
-                                    errorMessage = "Đăng ký lỗi! Phòng này đã có người đăng ký, hoặc tên phòng trống!"
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                            .testTag("register_submit_button"),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "ĐĂNG KÝ PHÒNG & ADMIN 📝",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    TextButton(onClick = {
-                        isRegisterMode = false
-                        errorMessage = null
-                    }) {
-                        Text("Quay lại màn hình đăng nhập")
                     }
                 }
+            }
+        }
+        TextButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Text("Quay lại đăng nhập", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun ModernInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String,
+    leadingIcon: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    trailingIcon: @Composable (() -> Unit)? = null
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 12.sp) },
+        placeholder = { Text(placeholder, fontSize = 12.sp) },
+        singleLine = true,
+        leadingIcon = leadingIcon,
+        trailingIcon = trailingIcon,
+        visualTransformation = visualTransformation,
+        keyboardOptions = keyboardOptions,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+        )
+    )
+}
+
+@Composable
+private fun ErrorText(errorMessage: String?) {
+    if (errorMessage != null) {
+        Surface(
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(10.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoginTipCard() {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface) {
+                Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("Hướng dẫn đăng nhập", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    "Nhập email và mật khẩu được cấp theo phòng. App tự nhận quyền Admin hoặc User.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

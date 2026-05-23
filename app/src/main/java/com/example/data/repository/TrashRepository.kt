@@ -13,6 +13,7 @@ import com.example.data.model.TrashState
 import com.example.data.remote.EmailSender
 import com.example.data.remote.FirebaseClient
 import kotlinx.coroutines.flow.Flow
+import java.util.UUID
 
 class TrashRepository(
     private val dormRoomDao: DormRoomDao,
@@ -117,6 +118,13 @@ class TrashRepository(
     suspend fun updateMembers(roomName: String, members: List<Member>) {
         val currentState = trashStateDao.getTrashState(roomName)
         val oldMembers = memberDao.getMembersByRoom(roomName)
+        val oldOrderById = oldMembers.mapIndexed { index, member -> member.id to index }.toMap()
+        val requestedOrderById = members.mapIndexed { index, member -> member.id to index }.toMap()
+        val movedMembers = members.filter { member ->
+            val oldOrder = oldOrderById[member.id]
+            val requestedOrder = requestedOrderById[member.id]
+            oldOrder != null && requestedOrder != null && oldOrder != requestedOrder
+        }
         val queueUpdate = applyAbsenceReturnQueueRule(roomName, oldMembers, members, currentState)
 
         memberDao.deleteAllMembersInRoom(roomName)
@@ -124,6 +132,21 @@ class TrashRepository(
 
         if (currentState != null) {
             trashStateDao.insertTrashState(currentState.copy(currentTurnIndex = queueUpdate.currentTurnIndex))
+        }
+
+        if (movedMembers.isNotEmpty()) {
+            val details = movedMembers.joinToString(", ") { member ->
+                val oldPosition = (oldOrderById[member.id] ?: 0) + 1
+                val newPosition = (requestedOrderById[member.id] ?: 0) + 1
+                "${member.name}: $oldPosition → $newPosition"
+            }
+            historyLogDao.insertLog(
+                HistoryLog(
+                    roomName = roomName,
+                    message = "Admin đã chỉnh sửa vị trí thành viên: $details.",
+                    type = "CONFIG"
+                )
+            )
         }
 
         normalizeCurrentTurnAfterMemberChange(roomName)
@@ -157,12 +180,16 @@ class TrashRepository(
         val currentTurnMember = members.getOrNull(currentTurnIndex)
             ?: return Pair(false, "Thành viên hiện tại không hợp lệ.")
 
+        val confirmToken = UUID.randomUUID().toString().replace("-", "")
+
         // Update state locally
         val updatedState = currentState.copy(
             currentTurnIndex = currentTurnIndex,
             isTrashFull = true,
             reportedByName = reporterName,
-            reportedAt = System.currentTimeMillis()
+            reportedAt = System.currentTimeMillis(),
+            confirmToken = confirmToken,
+            confirmEmail = currentTurnMember.email.trim().lowercase()
         )
         trashStateDao.insertTrashState(updatedState)
 
@@ -194,9 +221,11 @@ class TrashRepository(
                 toEmail = currentTurnMember.email,
                 recipientName = currentTurnMember.name,
                 sequenceId = currentTurnMember.id,
+                roomName = roomName,
                 webConfirmUrl = BuildConfig.WEB_CONFIRM_URL.ifBlank { updatedState.webConfirmUrl },
                 firebaseDbUrl = roomSpecificDbUrl,
-                firebaseApiKey = targetApiKey
+                firebaseApiKey = targetApiKey,
+                confirmToken = confirmToken
             )
             emailSentMessage = if (emailSuccess) {
                 "Báo rác đầy thành công và đã tự động gửi email nhắc nhở tới ${currentTurnMember.name}!"
@@ -235,7 +264,9 @@ class TrashRepository(
             currentTurnIndex = nextIndex,
             isTrashFull = false,
             reportedByName = "",
-            reportedAt = 0L
+            reportedAt = 0L,
+            confirmToken = "",
+            confirmEmail = ""
         )
         trashStateDao.insertTrashState(updatedState)
 
@@ -266,7 +297,7 @@ class TrashRepository(
         if (oldMembers.isEmpty() || currentState == null) {
             val initializedMembers = requestedMembers
                 .distinctBy { it.id }
-                .sortedBy { it.id }
+                .sortedBy { it.turnOrder }
                 .mapIndexed { index, member ->
                     member.copy(
                         roomName = roomName,
@@ -327,6 +358,7 @@ class TrashRepository(
                         email = requested.email,
                         password = requested.password,
                         isAbsent = requested.isAbsent,
+                        turnOrder = requested.turnOrder,
                         absentReturnDistance = if (requested.isAbsent) oldMember.absentReturnDistance else -1
                     )
                 }
@@ -337,6 +369,9 @@ class TrashRepository(
             .filter { oldById[it.id] == null }
             .map { member -> member.copy(roomName = roomName, absentReturnDistance = if (member.isAbsent) 0 else -1) }
         keptOldMembers.addAll(newMembers)
+
+        val requestedOrderRank = requestedMembers.mapIndexed { index, member -> member.id to index }.toMap()
+        keptOldMembers.sortBy { requestedOrderRank[it.id] ?: Int.MAX_VALUE }
 
         returningMembers.forEach { (member, savedDistance) ->
             val currentIndex = currentMemberId?.let { id -> keptOldMembers.indexOfFirst { it.id == id } } ?: -1
@@ -530,6 +565,8 @@ class TrashRepository(
                 isTrashFull = payload.isTrashFull,
                 reportedByName = payload.reportedByName,
                 reportedAt = payload.reportedAt,
+                confirmToken = payload.confirmToken,
+                confirmEmail = payload.confirmEmail,
                 lastSyncedAt = System.currentTimeMillis()
             )
             trashStateDao.insertTrashState(updatedState)

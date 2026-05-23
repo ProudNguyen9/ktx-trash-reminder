@@ -12,56 +12,63 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = MinimalPrimary,
-    onPrimary = MinimalOnPrimary,
-    primaryContainer = MinimalPrimaryContainer,
-    onPrimaryContainer = MinimalOnPrimaryContainer,
-    secondary = MinimalSecondary,
-    onSecondary = MinimalOnSecondary,
-    secondaryContainer = MinimalSecondaryContainer,
-    onSecondaryContainer = MinimalOnSecondaryContainer,
-    background = MinimalBackground,
-    onBackground = MinimalOnBackground,
-    surface = MinimalSurface,
-    onSurface = MinimalOnSurface,
-    surfaceVariant = MinimalSurfaceVariant,
-    onSurfaceVariant = MinimalOnSurfaceVariant,
-    outline = MinimalOutline,
-    outlineVariant = MinimalOutlineVariant,
-    error = MinimalError,
-    onError = MinimalOnError,
-    errorContainer = MinimalErrorContainer,
-    onErrorContainer = MinimalOnErrorContainer
+    primary = AppPrimaryContainer,
+    onPrimary = AppOnPrimaryContainer,
+    primaryContainer = AppPrimary,
+    onPrimaryContainer = AppOnPrimary,
+    secondary = AppSecondaryContainer,
+    onSecondary = AppOnSecondaryContainer,
+    secondaryContainer = AppSecondary,
+    onSecondaryContainer = AppOnSecondary,
+    tertiary = AppTertiaryContainer,
+    onTertiary = AppOnTertiaryContainer,
+    tertiaryContainer = AppTertiary,
+    onTertiaryContainer = AppOnTertiary,
+    background = AppOnBackground,
+    onBackground = AppBackground,
+    surface = AppOnSurface,
+    onSurface = AppSurface,
+    surfaceVariant = AppOnSurfaceVariant,
+    onSurfaceVariant = AppSurfaceVariant,
+    outline = AppOutlineVariant,
+    outlineVariant = AppOutline,
+    error = AppErrorContainer,
+    onError = AppOnErrorContainer,
+    errorContainer = AppError,
+    onErrorContainer = AppOnError
   )
 
 private val LightColorScheme =
   lightColorScheme(
-    primary = MinimalPrimary,
-    onPrimary = MinimalOnPrimary,
-    primaryContainer = MinimalPrimaryContainer,
-    onPrimaryContainer = MinimalOnPrimaryContainer,
-    secondary = MinimalSecondary,
-    onSecondary = MinimalOnSecondary,
-    secondaryContainer = MinimalSecondaryContainer,
-    onSecondaryContainer = MinimalOnSecondaryContainer,
-    background = MinimalBackground,
-    onBackground = MinimalOnBackground,
-    surface = MinimalSurface,
-    onSurface = MinimalOnSurface,
-    surfaceVariant = MinimalSurfaceVariant,
-    onSurfaceVariant = MinimalOnSurfaceVariant,
-    outline = MinimalOutline,
-    outlineVariant = MinimalOutlineVariant,
-    error = MinimalError,
-    onError = MinimalOnError,
-    errorContainer = MinimalErrorContainer,
-    onErrorContainer = MinimalOnErrorContainer
+    primary = AppPrimary,
+    onPrimary = AppOnPrimary,
+    primaryContainer = AppPrimaryContainer,
+    onPrimaryContainer = AppOnPrimaryContainer,
+    secondary = AppSecondary,
+    onSecondary = AppOnSecondary,
+    secondaryContainer = AppSecondaryContainer,
+    onSecondaryContainer = AppOnSecondaryContainer,
+    tertiary = AppTertiary,
+    onTertiary = AppOnTertiary,
+    tertiaryContainer = AppTertiaryContainer,
+    onTertiaryContainer = AppOnTertiaryContainer,
+    background = AppBackground,
+    onBackground = AppOnBackground,
+    surface = AppSurface,
+    onSurface = AppOnSurface,
+    surfaceVariant = AppSurfaceVariant,
+    onSurfaceVariant = AppOnSurfaceVariant,
+    outline = AppOutline,
+    outlineVariant = AppOutlineVariant,
+    error = AppError,
+    onError = AppOnError,
+    errorContainer = AppErrorContainer,
+    onErrorContainer = AppOnErrorContainer
   )
 
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  // Disabling dynamicColor by default to enforce Clean Minimalism visual identity
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
@@ -71,10 +78,9 @@ fun MyApplicationTheme(
         val context = LocalContext.current
         if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
       }
-
       darkTheme -> DarkColorScheme
       else -> LightColorScheme
     }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  MaterialTheme(colorScheme = colorScheme, typography = Typography, shapes = AppShapes, content = content)
 }

@@ -12,7 +12,10 @@ import com.example.data.model.TrashState
 import com.example.data.repository.TrashRepository
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -25,6 +28,7 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         database.trashStateDao(),
         database.historyLogDao()
     )
+    private var realtimeSyncJob: Job? = null
 
     // Exposed Flows
     val allRooms: StateFlow<List<DormRoom>> = repository.allRoomsFlow
@@ -82,12 +86,14 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
             // Set initial active room to default if rooms are loaded
             val rooms = repository.getAllRooms()
             if (rooms.isNotEmpty()) {
-                _activeRoomName.value = rooms.first().roomName
+                val initialRoom = rooms.first().roomName
+                _activeRoomName.value = initialRoom
                 try {
-                    repository.fetchFromFirebase(rooms.first().roomName)
+                    repository.fetchFromFirebase(initialRoom)
                 } catch (e: Exception) {
                     // Fail silently on first launch
                 }
+                startRealtimeSync(initialRoom)
             }
             _isLoading.value = false
         }
@@ -122,6 +128,7 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
     fun selectRoom(roomName: String) {
         viewModelScope.launch {
             _activeRoomName.value = roomName
+            startRealtimeSync(roomName)
             _isLoading.value = true
             try {
                 repository.fetchFromFirebase(roomName)
@@ -156,6 +163,7 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
             if (success) {
                 _statusMessage.emit("Đăng ký thành công phòng: $roomName!")
                 _activeRoomName.value = roomName // Set active room
+                startRealtimeSync(roomName)
             } else {
                 _statusMessage.emit("Phòng '$roomName' đã tồn tại hoặc tên phòng không hợp lệ!")
             }
@@ -199,6 +207,8 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = true
             val deleted = repository.deleteRoom(room)
             if (deleted) {
+                realtimeSyncJob?.cancel()
+                realtimeSyncJob = null
                 _activeRoomName.value = null
                 _statusMessage.emit("Đã xóa phòng $room và toàn bộ dữ liệu liên quan.")
                 onDeleted()
@@ -263,6 +273,20 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun startRealtimeSync(roomName: String) {
+        realtimeSyncJob?.cancel()
+        realtimeSyncJob = viewModelScope.launch {
+            while (isActive) {
+                try {
+                    repository.fetchFromFirebase(roomName)
+                } catch (e: Exception) {
+                    // Không hiện lỗi trong vòng lặp realtime để tránh làm phiền người dùng.
+                }
+                delay(3000)
+            }
+        }
+    }
+
     fun syncNow() {
         val room = _activeRoomName.value ?: return
         viewModelScope.launch {
@@ -292,5 +316,10 @@ class TrashViewModel(application: Application) : AndroidViewModel(application) {
                 _isLoading.value = false
             }
         }
+    }
+
+    override fun onCleared() {
+        realtimeSyncJob?.cancel()
+        super.onCleared()
     }
 }
